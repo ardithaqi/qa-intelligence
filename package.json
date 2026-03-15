@@ -1,17 +1,17 @@
 {
-    "name": "@ard/qa-ai-ci-engine",
+    "name": "@ard/qa-ci-intelligence",
     "version": "0.1.0",
     "private": true,
     "type": "commonjs",
     "main": "dist/index.js",
     "bin": {
-        "qa-ai-diff": "dist/cli/diff.js",
-        "qa-ai-comment": "dist/cli/comment.js"
+        "qa-ci-intelligence": "dist/cli/index.js"
+
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",
         "dev:diff": "ts-node src/cli/diff.ts --baseline baseline-artifacts --current artifacts --out failure-diff.json",
-        "dev:comment": "ts-node src/cli/comment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
+        "dev:comment": "ts-node src/cli/postComment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
     },
     "dependencies": {
         "@octokit/rest": "^22.0.1"
