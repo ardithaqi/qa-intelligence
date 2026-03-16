@@ -4,7 +4,21 @@ function formatList(title: string, list: AiFailure[]): string {
     if (list.length === 0) return "";
     let section = `### ${title} (${list.length})\n\n`;
     for (const item of list) {
-        section += `- ${item.file}:${item.line} | ${item.failure_type} | severity: ${item.severity} | confidence: ${item.confidence}\n`;
+        let line = `- ${item.file}:${item.line} | ${item.failure_type} | severity: ${item.severity} | confidence: ${item.confidence}`;
+
+        const occurrence = (item as any).occurrence_count;
+        const firstSeen = (item as any).first_seen;
+
+        if (occurrence && firstSeen) {
+            const date = new Date(firstSeen).toISOString().slice(0, 10);
+            const suffix =
+                occurrence === 1
+                    ? ` (failed once since ${date})`
+                    : ` (failed ${occurrence} times since ${date})`;
+            line += suffix;
+        }
+
+        section += line + "\n";
     }
     return section + "\n";
 }
