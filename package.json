@@ -1,6 +1,9 @@
 {
     "name": "@ard/qa-ci-intelligence",
     "version": "0.1.0",
+    "publishConfig": {
+    "access": "public"
+    },
     "description": "CI intelligence engine for test pipelines. Detects regressions, flaky tests, and failure lifecycle in pull requests.",
     "keywords": [
         "ci",
