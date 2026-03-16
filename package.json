@@ -1,6 +1,9 @@
 {
     "name": "qa-ci-intelligence",
     "version": "0.1.0",
+    "engines": {
+    "node": ">=18"
+    },
     "publishConfig": {
         "access": "public"
     },
