@@ -10,10 +10,15 @@ function formatList(title: string, list: AiFailure[]): string {
 }
 
 export function formatDiffComment(diff: DiffResult): string {
+    const unchanged = (diff as any).unchangedFailures ?? [];
+
+    const baselineCount = unchanged.length + diff.fixedFailures.length;
+    const currentCount = unchanged.length + diff.newFailures.length;
+
     const header =
         "## AI Failure Diff Summary\n\n" +
-        `Baseline: ${diff.baselineCount} failures\n` +
-        `Current: ${diff.currentCount} failures\n\n`;
+        `Baseline: ${baselineCount} failures\n` +
+        `Current: ${currentCount} failures\n\n`;
 
     const newSection = formatList("New Failures", diff.newFailures);
     const fixedSection = formatList("Fixed Failures", diff.fixedFailures);
