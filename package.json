@@ -1,5 +1,5 @@
 {
-    "name": "@ard/qa-ci-intelligence",
+    "name": "qa-ci-intelligence",
     "version": "0.1.0",
     "publishConfig": {
     "access": "public"
