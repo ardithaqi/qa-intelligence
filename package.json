@@ -1,15 +1,29 @@
 {
     "name": "@ard/qa-ci-intelligence",
     "version": "0.1.0",
-    "private": true,
+    "description": "CI intelligence engine for test pipelines. Detects regressions, flaky tests, and failure lifecycle in pull requests.",
+    "keywords": [
+        "ci",
+        "qa",
+        "test-automation",
+        "playwright",
+        "regression-detection",
+        "flaky-tests",
+        "ci-intelligence"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ardithaqi/qa-ci-intelligence.git"
+    },
     "type": "commonjs",
     "main": "dist/index.js",
     "bin": {
         "qa-ci-intelligence": "dist/cli/index.js"
-
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",
+        "prepare": "npm run build",
         "dev:diff": "ts-node src/cli/diff.ts --baseline baseline-artifacts --current artifacts --out failure-diff.json",
         "dev:comment": "ts-node src/cli/postComment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
     },
@@ -21,5 +35,8 @@
         "ts-node": "^10.9.2",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3"
-    }
+    },
+    "files": [
+        "dist"
+    ]
 }

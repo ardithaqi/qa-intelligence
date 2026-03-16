@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { execSync } from "child_process";
 
 function getArg(name: string): string | undefined {
@@ -15,18 +16,16 @@ async function main() {
 
     console.log("Running failure diff...");
 
-    execSync(
-        `npx tsx src/cli/diff.ts --baseline ${baseline} --current ${current} --out failure-diff.json`,
-        { stdio: "inherit" }
-    );
+    execSync(`node ${__dirname}/diff.js --baseline ${baseline} --current ${current} --out failure-diff.json`, {
+        stdio: "inherit"
+    });
 
     if (repo && pr && token) {
         console.log("Posting PR comment...");
 
-        execSync(
-            `npx tsx src/cli/postComment.ts --diff failure-diff.json --repo ${repo} --pr ${pr} --token ${token}`,
-            { stdio: "inherit" }
-        );
+        execSync(`node ${__dirname}/postComment.js --diff failure-diff.json --repo ${repo} --pr ${pr} --token ${token}`, {
+            stdio: "inherit"
+        });
     }
 }
 
