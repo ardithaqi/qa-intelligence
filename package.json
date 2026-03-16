@@ -2,7 +2,7 @@
     "name": "qa-ci-intelligence",
     "version": "0.1.0",
     "publishConfig": {
-    "access": "public"
+        "access": "public"
     },
     "description": "CI intelligence engine for test pipelines. Detects regressions, flaky tests, and failure lifecycle in pull requests.",
     "keywords": [
@@ -17,7 +17,7 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/ardithaqi/qa-ci-intelligence.git"
+        "url": "git+https://github.com/ardithaqi/qa-ci-intelligence.git"
     },
     "type": "commonjs",
     "main": "dist/index.js",
