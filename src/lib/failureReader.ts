@@ -17,7 +17,7 @@ function walkForAiTxt(dir: string, results: string[] = []): string[] {
 
         if (stat.isDirectory()) {
             walkForAiTxt(full, results);
-        } else if (entry === "ai.txt") {
+        } else if (entry === "ai.txt" || entry === "failure-meta.json") {
             results.push(full);
         }
     }
@@ -29,6 +29,31 @@ function walkForAiTxt(dir: string, results: string[] = []): string[] {
  * We extract JSON by finding the first "{" and parsing the rest.
  */
 function parseAiTxt(filePath: string): AiFailure | null {
+    if (filePath.endsWith("failure-meta.json")) {
+        try {
+            const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+            if (!raw || !Array.isArray(raw.failures) || raw.failures.length === 0) {
+                return null;
+            }
+
+            const parsed = raw.failures[0];
+
+            return {
+                file: parsed.file,
+                line: parsed.line,
+                failure_type: parsed.failure_type,
+                expected: parsed.expected,
+                received: parsed.received,
+                is_flaky_suspected: Boolean(parsed.is_flaky_suspected),
+                severity: parsed.severity,
+                confidence: parsed.confidence,
+            };
+        } catch {
+            return null;
+        }
+    }
+
     const content = fs.readFileSync(filePath, "utf8");
     const jsonStart = content.indexOf("{");
     if (jsonStart === -1) return null;
