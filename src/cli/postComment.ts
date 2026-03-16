@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import fs from "fs";
 import { formatDiffComment } from "../lib/format";
 import { DiffResult } from "../lib/types";
@@ -42,7 +43,6 @@ async function main() {
 
     const existing = comments.find(
         (c) =>
-            c.user?.type === "Bot" &&
             typeof c.body === "string" &&
             c.body.startsWith("## AI Failure Diff Summary")
     );

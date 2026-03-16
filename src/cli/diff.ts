@@ -1,7 +1,6 @@
+#!/usr/bin/env node
 import fs from "fs";
-import path from "path";
-import { readFailures } from "../lib/failureReader";
-import { computeDiff } from "../lib/diff";
+import { computeDiff } from "../lib/computeDiff";
 
 function getArg(name: string): string | undefined {
     const idx = process.argv.indexOf(`--${name}`);
@@ -21,15 +20,13 @@ async function main() {
     const outFile = getArg("out") ?? "failure-diff.json";
     const failOnNew = getBoolArg("fail-on-new", false);
 
-    const baseline = readFailures({ rootDir: baselineDir }).failures;
-    const current = readFailures({ rootDir: currentDir }).failures;
-
-    const diff = computeDiff(baseline, current);
+    const diff = computeDiff(baselineDir, currentDir);
 
     fs.writeFileSync(outFile, JSON.stringify(diff, null, 2));
 
     console.log(`Wrote diff to ${outFile}`);
     console.log(`New failures: ${diff.newFailures.length}`);
+    console.log(`Still failing: ${diff.unchangedFailures.length}`);
     console.log(`Fixed failures: ${diff.fixedFailures.length}`);
 
     if (failOnNew && diff.newFailures.length > 0) {
