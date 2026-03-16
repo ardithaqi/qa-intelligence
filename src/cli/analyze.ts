@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { analyzeLatestFailure } from "../lib/failureAnalyzer";
+import { runAnalyzer } from "../lib/runAnalyzer";
 import fs from "fs";
 import path from "path";
 
@@ -13,7 +13,7 @@ async function main() {
         return;
     }
 
-    const result = await analyzeLatestFailure();
+    const result = await runAnalyzer();
 
     if (!result) {
         console.log("No AI analysis generated.");

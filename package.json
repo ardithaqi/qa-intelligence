@@ -19,7 +19,11 @@
     "type": "commonjs",
     "main": "dist/index.js",
     "bin": {
-        "qa-ci-intelligence": "dist/cli/index.js"
+        "qa-ci-intelligence": "dist/cli/index.js",
+        "qa-ci-analyze": "dist/cli/analyze.js",
+        "qa-ci-diff": "dist/cli/diff.js",
+        "qa-ci-history": "dist/cli/history.js",
+        "qa-ci-comment": "dist/cli/postComment.js"
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",
@@ -28,7 +32,8 @@
         "dev:comment": "ts-node src/cli/postComment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
     },
     "dependencies": {
-        "@octokit/rest": "^22.0.1"
+        "@octokit/rest": "^22.0.1",
+        "openai": "^6.29.0"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",

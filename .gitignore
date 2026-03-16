@@ -1,5 +1,5 @@
 node_modules
-dist
+dist/
 *.tgz
 package-lock.json
 failure-diff.json
