@@ -18,7 +18,7 @@ async function main() {
 
     if (!diffPath || !repoArg || !prArg || !token) {
         console.error(
-            "Usage: qa-ci-comment --diff <file> --repo <owner/repo> --pr <number> --token <token>"
+            "Usage: qa-intelligence-comment --diff <file> --repo <owner/repo> --pr <number> --token <token>"
         );
         process.exit(1);
     }

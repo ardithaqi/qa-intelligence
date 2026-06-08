@@ -1,6 +1,6 @@
 {
-    "name": "qa-ci-intelligence",
-    "version": "0.2.0",
+    "name": "qa-intelligence",
+    "version": "1.0.0",
     "engines": {
         "node": ">=18"
     },
@@ -15,12 +15,12 @@
         "playwright",
         "regression-detection",
         "flaky-tests",
-        "ci-intelligence"
+        "qa-intelligence"
     ],
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/ardithaqi/qa-ci-intelligence.git"
+        "url": "git+https://github.com/ardithaqi/qa-intelligence.git"
     },
     "type": "commonjs",
     "main": "dist/index.js",
@@ -36,10 +36,10 @@
         "@playwright/test": ">=1.40.0"
     },
     "bin": {
-        "qa-ci-intelligence": "dist/cli/index.js",
-        "qa-ci-diff": "dist/cli/diff.js",
-        "qa-ci-history": "dist/cli/history.js",
-        "qa-ci-comment": "dist/cli/postComment.js"
+        "qa-intelligence": "dist/cli/index.js",
+        "qa-intelligence-diff": "dist/cli/diff.js",
+        "qa-intelligence-history": "dist/cli/history.js",
+        "qa-intelligence-comment": "dist/cli/postComment.js"
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",

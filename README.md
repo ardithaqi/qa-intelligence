@@ -1,4 +1,4 @@
-# qa-ci-intelligence
+# qa-intelligence
 
 CI intelligence engine for Playwright test pipelines.
 
@@ -15,7 +15,7 @@ Use it **without the framework template** — install the package into any exist
 ## Install
 
 ```bash
-npm install qa-ci-intelligence @playwright/test
+npm install qa-intelligence @playwright/test
 ```
 
 ---
@@ -35,14 +35,14 @@ PW_RETRIES=1
 
 ```ts
 import { defineConfig } from "@playwright/test";
-import { env } from "qa-ci-intelligence/config/env";
+import { env } from "qa-intelligence/config/env";
 
 export default defineConfig({
   testDir: "./tests",
   retries: env.PW_RETRIES,
   workers: env.PW_WORKERS,
-  globalSetup: require.resolve("qa-ci-intelligence/playwright/globalSetup"),
-  globalTeardown: require.resolve("qa-ci-intelligence/playwright/globalTeardown"),
+  globalSetup: require.resolve("qa-intelligence/playwright/globalSetup"),
+  globalTeardown: require.resolve("qa-intelligence/playwright/globalTeardown"),
   use: {
     baseURL: env.BASE_URL,
     headless: env.HEADLESS,
@@ -58,7 +58,7 @@ export default defineConfig({
 Always import `test` from the package — **not** directly from Playwright:
 
 ```ts
-import { test, expect } from "qa-ci-intelligence/playwright";
+import { test, expect } from "qa-intelligence/playwright";
 
 test("user can login", async ({ page }) => {
   await page.goto("/");
@@ -69,8 +69,8 @@ test("user can login", async ({ page }) => {
 Optional helpers:
 
 ```ts
-import { step } from "qa-ci-intelligence/playwright/steps";
-import { BasePage } from "qa-ci-intelligence/playwright/basePage";
+import { step } from "qa-intelligence/playwright/steps";
+import { BasePage } from "qa-intelligence/playwright/basePage";
 ```
 
 ### 4. What you provide
@@ -80,7 +80,7 @@ import { BasePage } from "qa-ci-intelligence/playwright/basePage";
 | `tests/` | Test hooks, artifact capture |
 | `.env` | Env validation |
 | `playwright.config.ts` | `globalSetup`, `globalTeardown`, AI teardown |
-| `.github/workflows/ci.yml` | `qa-ci-diff`, `qa-ci-history`, `qa-ci-comment` |
+| `.github/workflows/ci.yml` | `qa-intelligence-diff`, `qa-intelligence-history`, `qa-intelligence-comment` |
 | Page objects (optional) | `BasePage`, `step()` |
 
 ---
@@ -96,7 +96,7 @@ It includes everything wired together:
 - Docker test execution
 - Artifact upload on every run
 - Baseline download from `main` on pull requests
-- `qa-ci-diff`, `qa-ci-history`, `qa-ci-comment`
+- `qa-intelligence-diff`, `qa-intelligence-history`, `qa-intelligence-comment`
 - PR blocking on new non-flaky failures
 
 Then update:
@@ -109,10 +109,10 @@ Then update:
 If you already run Playwright in CI, add these steps **after** tests run and `artifacts/` are uploaded:
 
 ```bash
-npm install qa-ci-intelligence
-npx qa-ci-diff --baseline baseline-artifacts --current artifacts
-npx qa-ci-history
-npx qa-ci-comment \
+npm install qa-intelligence
+npx qa-intelligence-diff --baseline baseline-artifacts --current artifacts
+npx qa-intelligence-history
+npx qa-intelligence-comment \
   --diff failure-diff.json \
   --repo owner/repo \
   --pr 123 \
@@ -150,9 +150,9 @@ Set `AI_ANALYSIS=true` in CI when running tests inside Docker.
 
 | Command | Purpose |
 |---------|---------|
-| `qa-ci-diff` | Compare baseline vs current failures |
-| `qa-ci-history` | Add recurrence tracking |
-| `qa-ci-comment` | Post/update PR summary comment |
+| `qa-intelligence-diff` | Compare baseline vs current failures |
+| `qa-intelligence-history` | Add recurrence tracking |
+| `qa-intelligence-comment` | Post/update PR summary comment |
 
 ---
 
@@ -160,12 +160,12 @@ Set `AI_ANALYSIS=true` in CI when running tests inside Docker.
 
 | Import path | What it gives you |
 |-------------|-------------------|
-| `qa-ci-intelligence/playwright` | `test`, `expect`, `env` |
-| `qa-ci-intelligence/playwright/globalSetup` | Artifact run setup |
-| `qa-ci-intelligence/playwright/globalTeardown` | AI failure analysis |
-| `qa-ci-intelligence/playwright/basePage` | Base page object |
-| `qa-ci-intelligence/playwright/steps` | `step()` helper |
-| `qa-ci-intelligence/config/env` | Validated env config |
+| `qa-intelligence/playwright` | `test`, `expect`, `env` |
+| `qa-intelligence/playwright/globalSetup` | Artifact run setup |
+| `qa-intelligence/playwright/globalTeardown` | AI failure analysis |
+| `qa-intelligence/playwright/basePage` | Base page object |
+| `qa-intelligence/playwright/steps` | `step()` helper |
+| `qa-intelligence/config/env` | Validated env config |
 
 ---
 
