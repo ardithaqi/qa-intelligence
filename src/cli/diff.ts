@@ -18,7 +18,7 @@ async function main() {
     const baselineDir = getArg("baseline") ?? "baseline-artifacts";
     const currentDir = getArg("current") ?? "artifacts";
     const outFile = getArg("out") ?? "failure-diff.json";
-    const failOnNew = getBoolArg("fail-on-new", false);
+    const failOnBlocking = getBoolArg("fail-on-blocking", true);
 
     const diff = computeDiff(baselineDir, currentDir);
 
@@ -26,11 +26,14 @@ async function main() {
 
     console.log(`Wrote diff to ${outFile}`);
     console.log(`New failures: ${diff.newFailures.length}`);
+    console.log(`Blocking failures: ${diff.blockingFailures.length}`);
     console.log(`Still failing: ${diff.unchangedFailures.length}`);
     console.log(`Fixed failures: ${diff.fixedFailures.length}`);
 
-    if (failOnNew && diff.newFailures.length > 0) {
-        console.error("Failing job because new failures were detected.");
+    if (failOnBlocking && diff.blockingFailures.length > 0) {
+        console.error(
+            `Failing job because ${diff.blockingFailures.length} new non-flaky failure(s) were detected.`
+        );
         process.exit(1);
     }
 }

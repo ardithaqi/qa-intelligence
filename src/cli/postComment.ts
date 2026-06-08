@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import fs from "fs";
-import { formatDiffComment } from "../lib/format";
+import { formatDiffComment, hasFailureChanges } from "../lib/format";
 import { DiffResult } from "../lib/types";
 import { Octokit } from "@octokit/rest";
 
@@ -18,7 +18,7 @@ async function main() {
 
     if (!diffPath || !repoArg || !prArg || !token) {
         console.error(
-            "Usage: qa-ai-comment --diff <file> --repo <owner/repo> --pr <number> --token <token>"
+            "Usage: qa-ci-comment --diff <file> --repo <owner/repo> --pr <number> --token <token>"
         );
         process.exit(1);
     }
@@ -28,6 +28,11 @@ async function main() {
 
     const raw = fs.readFileSync(diffPath, "utf8");
     const diff = JSON.parse(raw) as DiffResult;
+
+    if (!hasFailureChanges(diff)) {
+        console.log("No failure changes. Skipping comment.");
+        return;
+    }
 
     const body = formatDiffComment(diff);
 
@@ -43,6 +48,7 @@ async function main() {
 
     const existing = comments.find(
         (c) =>
+            c.user?.type === "Bot" &&
             typeof c.body === "string" &&
             c.body.startsWith("## AI Failure Diff Summary")
     );

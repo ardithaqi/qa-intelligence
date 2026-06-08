@@ -1,6 +1,6 @@
 {
     "name": "qa-ci-intelligence",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "engines": {
         "node": ">=18"
     },
@@ -26,7 +26,6 @@
     "main": "dist/index.js",
     "bin": {
         "qa-ci-intelligence": "dist/cli/index.js",
-        "qa-ci-analyze": "dist/cli/analyze.js",
         "qa-ci-diff": "dist/cli/diff.js",
         "qa-ci-history": "dist/cli/history.js",
         "qa-ci-comment": "dist/cli/postComment.js"
@@ -38,8 +37,7 @@
         "dev:comment": "ts-node src/cli/postComment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
     },
     "dependencies": {
-        "@octokit/rest": "^22.0.1",
-        "openai": "^6.29.0"
+        "@octokit/rest": "^22.0.1"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",

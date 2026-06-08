@@ -9,21 +9,23 @@ export type FailureType =
     | "unknown";
 
 export type AiFailure = {
-    file: string; // project-relative, e.g. tests/... (your prompt enforces this)
+    file: string;
     line: number;
-    failure_type: FailureType;
+    failure_type: FailureType | string;
     expected?: number | string;
     received?: number | string;
-    is_flaky_suspected: boolean;
-    severity: Severity;
+    is_flaky_suspected?: boolean;
+    severity: Severity | string;
     confidence: number;
+    first_seen?: string;
+    occurrence_count?: number;
 };
 
 export type FailureKey = string;
 
 export type DiffResult = {
-    baselineCount: number;
-    currentCount: number;
     newFailures: AiFailure[];
+    unchangedFailures: AiFailure[];
     fixedFailures: AiFailure[];
+    blockingFailures?: AiFailure[];
 };

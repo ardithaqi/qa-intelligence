@@ -92,9 +92,7 @@ export function computeDiff(
     }
 
     const blockingFailures = newFailures.filter(
-        f =>
-            !f.is_flaky_suspected &&
-            (f.severity === "high" || f.severity === "medium")
+        (f) => !f.is_flaky_suspected
     );
 
     return {
