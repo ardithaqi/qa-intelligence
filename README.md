@@ -18,9 +18,11 @@ Use it **without the framework template** — install the package into any exist
 npm install qa-intelligence @playwright/test
 ```
 
+npm automatically installs peer dependencies (`typescript`, `@types/node`) — no separate dev-deps step needed.
+
 ---
 
-## Quick setup (existing project)
+## Setup (existing Playwright project)
 
 ### 1. Environment (`.env`)
 
@@ -31,7 +33,26 @@ PW_WORKERS=2
 PW_RETRIES=1
 ```
 
-### 2. `playwright.config.ts`
+### 2. `tsconfig.json` (TypeScript projects)
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "strict": true,
+    "esModuleInterop": true,
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["tests/**/*", "playwright.config.ts"]
+}
+```
+
+> `module` and `moduleResolution` must both be `"Node16"` so TypeScript resolves the package `exports` map.
+
+### 3. `playwright.config.ts`
 
 ```ts
 import { defineConfig } from "@playwright/test";
@@ -53,7 +74,7 @@ export default defineConfig({
 });
 ```
 
-### 3. Write tests
+### 4. Write tests
 
 Always import `test` from the package — **not** directly from Playwright:
 
@@ -73,7 +94,7 @@ import { step } from "qa-intelligence/playwright/steps";
 import { BasePage } from "qa-intelligence/playwright/basePage";
 ```
 
-### 4. What you provide
+### 5. What you provide
 
 | You write | Package provides |
 |-----------|------------------|

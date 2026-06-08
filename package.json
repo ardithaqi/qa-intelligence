@@ -1,6 +1,6 @@
 {
     "name": "qa-intelligence",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "engines": {
         "node": ">=18"
     },
@@ -25,15 +25,35 @@
     "type": "commonjs",
     "main": "dist/index.js",
     "exports": {
-        "./playwright": "./dist/playwright/baseTest.js",
-        "./playwright/globalSetup": "./dist/playwright/globalSetup.js",
-        "./playwright/globalTeardown": "./dist/playwright/globalTeardown.js",
-        "./playwright/basePage": "./dist/playwright/basePage.js",
-        "./playwright/steps": "./dist/playwright/steps.js",
-        "./config/env": "./dist/config/env.js"
+        "./playwright": {
+            "types": "./dist/playwright/baseTest.d.ts",
+            "default": "./dist/playwright/baseTest.js"
+        },
+        "./playwright/globalSetup": {
+            "types": "./dist/playwright/globalSetup.d.ts",
+            "default": "./dist/playwright/globalSetup.js"
+        },
+        "./playwright/globalTeardown": {
+            "types": "./dist/playwright/globalTeardown.d.ts",
+            "default": "./dist/playwright/globalTeardown.js"
+        },
+        "./playwright/basePage": {
+            "types": "./dist/playwright/basePage.d.ts",
+            "default": "./dist/playwright/basePage.js"
+        },
+        "./playwright/steps": {
+            "types": "./dist/playwright/steps.d.ts",
+            "default": "./dist/playwright/steps.js"
+        },
+        "./config/env": {
+            "types": "./dist/config/env.d.ts",
+            "default": "./dist/config/env.js"
+        }
     },
     "peerDependencies": {
-        "@playwright/test": ">=1.40.0"
+        "@playwright/test": ">=1.40.0",
+        "typescript": ">=5.0.0",
+        "@types/node": ">=18.0.0"
     },
     "bin": {
         "qa-intelligence": "dist/cli/index.js",
