@@ -1,6 +1,8 @@
-# qa-intelligence
+# QA Intelligence
 
-CI intelligence engine for Playwright test pipelines.
+**npm:** [`qa-intelligence`](https://www.npmjs.com/package/qa-intelligence)
+
+The intelligence engine for Playwright CI pipelines — install it into any project or use the full [QA Intelligence Framework](https://github.com/ardithaqi/qa-intelligence-framework) template.
 
 - AI-powered failure analysis
 - PR failure diff (new, flaky, still failing, fixed)
@@ -8,13 +10,18 @@ CI intelligence engine for Playwright test pipelines.
 - PR blocking on new non-flaky failures
 - Recurrence tracking ("3rd time since...")
 
-Use it **without the framework template** — install the package into any existing Playwright project.
+Use it **without the framework template** — install the package into your existing app repo.
+
+**Recommended layout:** create a `playwright/` subfolder at the repo root and keep all E2E tooling there, separate from your main app code. Full step-by-step guide (folder layout, `Dockerfile`, CI path changes): **[qa-intelligence-framework README](https://github.com/ardithaqi/qa-intelligence-framework#add-to-an-existing-project-npm-package)**.
 
 ---
 
 ## Install
 
+Run inside your `playwright/` folder (or your Playwright project root if tests already live there):
+
 ```bash
+cd playwright
 npm install qa-intelligence @playwright/test
 ```
 
@@ -22,7 +29,9 @@ npm automatically installs peer dependencies (`typescript`, `@types/node`) — n
 
 ---
 
-## Setup (existing Playwright project)
+## Setup
+
+All paths below are relative to `playwright/` when using the recommended subfolder layout.
 
 ### 1. Environment (`.env`)
 
@@ -98,9 +107,10 @@ import { BasePage } from "qa-intelligence/playwright/basePage";
 
 | You write | Package provides |
 |-----------|------------------|
-| `tests/` | Test hooks, artifact capture |
-| `.env` | Env validation |
-| `playwright.config.ts` | `globalSetup`, `globalTeardown`, AI teardown |
+| `playwright/tests/` | Test hooks, artifact capture |
+| `playwright/.env` | Env validation |
+| `playwright/playwright.config.ts` | `globalSetup`, `globalTeardown`, AI teardown |
+| `playwright/Dockerfile` | — (copy from [framework](https://github.com/ardithaqi/qa-intelligence-framework/blob/master/Dockerfile)) |
 | `.github/workflows/ci.yml` | `qa-intelligence-diff`, `qa-intelligence-history`, `qa-intelligence-comment` |
 | Page objects (optional) | `BasePage`, `step()` |
 
@@ -108,11 +118,11 @@ import { BasePage } from "qa-intelligence/playwright/basePage";
 
 ## CI setup (GitHub Actions)
 
-### Option A: Copy the full workflow (recommended)
+Copy [`.github/workflows/ci.yml`](https://github.com/ardithaqi/qa-intelligence-framework/blob/master/.github/workflows/ci.yml) and [`Dockerfile`](https://github.com/ardithaqi/qa-intelligence-framework/blob/master/Dockerfile) from the framework repo.
 
-Copy `.github/workflows/ci.yml` from the [framework template](https://github.com/ardithaqi/qa-intelligence-framework/blob/master/.github/workflows/ci.yml) into your repo.
+When using the `playwright/` subfolder layout, apply the CI path changes documented in the [framework adoption guide](https://github.com/ardithaqi/qa-intelligence-framework#add-to-an-existing-project-npm-package) (`working-directory: playwright`, artifact paths, etc.).
 
-It includes everything wired together:
+The workflow includes:
 
 - Docker test execution
 - Artifact upload on every run
@@ -124,28 +134,6 @@ Then update:
 
 - `BASE_URL` in the `docker run` step
 - GitHub secrets (see below)
-
-### Option B: Add to your existing workflow
-
-If you already run Playwright in CI, add these steps **after** tests run and `artifacts/` are uploaded:
-
-```bash
-npm install qa-intelligence
-npx qa-intelligence-diff --baseline baseline-artifacts --current artifacts
-npx qa-intelligence-history
-npx qa-intelligence-comment \
-  --diff failure-diff.json \
-  --repo owner/repo \
-  --pr 123 \
-  --token $GITHUB_TOKEN
-```
-
-You must also handle on your own:
-
-- Uploading `artifacts/` after each run
-- Downloading `baseline-artifacts/` from the target branch on PRs
-
-See the [framework CI workflow](https://github.com/ardithaqi/qa-intelligence-framework/blob/master/.github/workflows/ci.yml) for reference.
 
 ### Required GitHub secrets
 
