@@ -179,6 +179,12 @@ The template uses this package under the hood.
 
 ---
 
+## Author
+
+Built as the intelligence engine behind QA automation — Playwright hooks, AI failure analysis, and PR-aware CI. If you use this package, consider leaving a star or linking back—contributions are welcome.
+
+---
+
 ## License
 
 MIT
