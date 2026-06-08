@@ -1,6 +1,6 @@
 {
     "name": "qa-ci-intelligence",
-    "version": "0.1.4",
+    "version": "0.2.0",
     "engines": {
         "node": ">=18"
     },
@@ -24,6 +24,17 @@
     },
     "type": "commonjs",
     "main": "dist/index.js",
+    "exports": {
+        "./playwright": "./dist/playwright/baseTest.js",
+        "./playwright/globalSetup": "./dist/playwright/globalSetup.js",
+        "./playwright/globalTeardown": "./dist/playwright/globalTeardown.js",
+        "./playwright/basePage": "./dist/playwright/basePage.js",
+        "./playwright/steps": "./dist/playwright/steps.js",
+        "./config/env": "./dist/config/env.js"
+    },
+    "peerDependencies": {
+        "@playwright/test": ">=1.40.0"
+    },
     "bin": {
         "qa-ci-intelligence": "dist/cli/index.js",
         "qa-ci-diff": "dist/cli/diff.js",
@@ -37,9 +48,13 @@
         "dev:comment": "ts-node src/cli/postComment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
     },
     "dependencies": {
-        "@octokit/rest": "^22.0.1"
+        "@octokit/rest": "^22.0.1",
+        "dotenv": "^17.3.1",
+        "openai": "^6.29.0",
+        "zod": "^4.3.6"
     },
     "devDependencies": {
+        "@playwright/test": "^1.58.2",
         "@types/node": "^22.0.0",
         "ts-node": "^10.9.2",
         "tsx": "^4.21.0",
