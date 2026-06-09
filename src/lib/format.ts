@@ -55,7 +55,7 @@ export function formatDiffComment(diff: DiffResult): string {
 
     if (unchangedFailures.length > 0) {
         body +=
-            "⚠️ **Existing issues** from the base branch are still failing on this branch. This PR was not blocked by them. Fix these on this branch or on the base branch to get to green.\n\n";
+            "⚠️ **Pre-existing failures** from the base branch are still failing. These are shown for visibility only — **they do not block this PR**. Only **New Issues** block merge.\n\n";
     }
 
     body += formatSection("New Issues", realNewFailures);
