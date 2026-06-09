@@ -85,7 +85,27 @@ export default defineConfig({
 
 ### 4. Write tests
 
-Always import `test` from the package — **not** directly from Playwright:
+**Important** — always import `test` and `expect` from the package:
+
+```ts
+import { test, expect } from "qa-intelligence/playwright";
+```
+
+**Not** directly from Playwright:
+
+```ts
+// ❌ No AI artifacts, no PR diff, no flaky detection
+import { test, expect } from "@playwright/test";
+```
+
+Using `qa-intelligence/playwright` enables:
+
+- AI failure analysis (`meta.json` → `ai.txt`)
+- Artifact generation on failure
+- Flaky detection (retry-aware)
+- CI diff intelligence and PR comments
+
+Example test:
 
 ```ts
 import { test, expect } from "qa-intelligence/playwright";
@@ -95,6 +115,8 @@ test("user can login", async ({ page }) => {
   await expect(page).toHaveTitle(/My App/);
 });
 ```
+
+> **Using the [framework template](https://github.com/ardithaqi/qa-intelligence-framework)?** Import from local `src/core/baseTest` instead — same hooks, different path for that repo layout.
 
 Optional helpers:
 
