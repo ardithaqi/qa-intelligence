@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { failureDiffKey, normalizeTestPath } from "./failureIdentity";
 import { AiFailure, FailureKey } from "./types";
 
 export type ReadFailuresOptions = {
@@ -79,7 +80,7 @@ function parseAiTxt(filePath: string): AiFailure | null {
             typeof parsed.line === "string" ? Number(parsed.line) : parsed.line;
 
         const failure: AiFailure = {
-            file: parsed.file,
+            file: normalizeTestPath(parsed.file),
             line: Number.isFinite(lineNum) ? lineNum : 0,
             failure_type: parsed.failure_type,
             expected: parsed.expected,
@@ -96,7 +97,7 @@ function parseAiTxt(filePath: string): AiFailure | null {
 }
 
 export function failureKey(f: AiFailure): FailureKey {
-    return `${f.file}:${f.line}:${f.failure_type}`;
+    return failureDiffKey(f.file, f.failure_type);
 }
 
 export function readFailures(options: ReadFailuresOptions): {

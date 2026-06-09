@@ -6,6 +6,7 @@
 
 import fs from "fs";
 import path from "path";
+import { failureDiffKey } from "../lib/failureIdentity";
 
 const HISTORY_PATH = ".cache/failure-history.json";
 const MAX_RUNS = 20;
@@ -35,7 +36,7 @@ interface History {
 }
 
 function failureKey(f: Failure): string {
-    return `${f.file}:${f.line}:${f.failure_type}`;
+    return failureDiffKey(f.file, f.failure_type);
 }
 
 function loadHistory(): History {

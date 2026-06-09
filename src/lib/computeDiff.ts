@@ -1,5 +1,11 @@
 import fs from "fs";
 import path from "path";
+import {
+    failureDiffKey,
+    normalizeTestPath,
+    parseAttemptFromAiPath,
+    parseLocationFromStack,
+} from "./failureIdentity";
 
 export interface Failure {
     file: string;
@@ -10,7 +16,12 @@ export interface Failure {
     is_flaky_suspected?: boolean;
 }
 
-function extractTrailingJson(content: string): Failure | null {
+interface MetaJson {
+    stack?: string;
+    is_flaky_suspected?: boolean;
+}
+
+function extractTrailingJson(content: string): Partial<Failure> | null {
     const trimmed = content.trimEnd();
 
     for (
@@ -19,16 +30,59 @@ function extractTrailingJson(content: string): Failure | null {
         i = trimmed.lastIndexOf("{", i - 1)
     ) {
         try {
-            return JSON.parse(trimmed.slice(i)) as Failure;
+            return JSON.parse(trimmed.slice(i)) as Partial<Failure>;
         } catch { }
     }
 
     return null;
 }
 
+function readMetaJson(aiTxtPath: string): MetaJson | null {
+    const metaPath = path.join(path.dirname(aiTxtPath), "meta.json");
+
+    if (!fs.existsSync(metaPath)) return null;
+
+    try {
+        return JSON.parse(fs.readFileSync(metaPath, "utf8")) as MetaJson;
+    } catch {
+        return null;
+    }
+}
+
+function resolveFailure(aiTxtPath: string): Failure | null {
+    const content = fs.readFileSync(aiTxtPath, "utf8");
+    const ai = extractTrailingJson(content);
+
+    if (!ai?.failure_type || typeof ai.severity !== "string") return null;
+    if (typeof ai.confidence !== "number") return null;
+
+    const meta = readMetaJson(aiTxtPath);
+    const fromStack = parseLocationFromStack(meta?.stack);
+
+    const file = normalizeTestPath(
+        fromStack?.file ?? (typeof ai.file === "string" ? ai.file : "")
+    );
+    const line =
+        fromStack?.line ??
+        (typeof ai.line === "number" ? ai.line : Number(ai.line) || 0);
+
+    if (!file) return null;
+
+    return {
+        file,
+        line,
+        failure_type: ai.failure_type,
+        severity: ai.severity,
+        confidence: ai.confidence,
+        is_flaky_suspected:
+            ai.is_flaky_suspected ?? meta?.is_flaky_suspected ?? false,
+    };
+}
+
 function collectFailures(root: string): Failure[] {
-    const failures: Failure[] = [];
-    if (!fs.existsSync(root)) return failures;
+    if (!fs.existsSync(root)) return [];
+
+    const bestByKey = new Map<string, { failure: Failure; attempt: number }>();
 
     function walk(dir: string) {
         for (const file of fs.readdirSync(dir)) {
@@ -36,32 +90,33 @@ function collectFailures(root: string): Failure[] {
 
             if (fs.statSync(full).isDirectory()) {
                 walk(full);
-            } else if (file === "ai.txt") {
-                const content = fs.readFileSync(full, "utf8");
-                const data = extractTrailingJson(content);
-                if (!data) continue;
+                continue;
+            }
 
-                failures.push({
-                    file: data.file,
-                    line: data.line,
-                    failure_type: data.failure_type,
-                    severity: data.severity,
-                    confidence: data.confidence,
-                    is_flaky_suspected: data.is_flaky_suspected ?? false
-                });
+            if (file !== "ai.txt") continue;
+
+            const failure = resolveFailure(full);
+            if (!failure) continue;
+
+            const key = failureDiffKey(failure.file, failure.failure_type);
+            const attempt = parseAttemptFromAiPath(full);
+            const existing = bestByKey.get(key);
+
+            if (!existing || attempt >= existing.attempt) {
+                bestByKey.set(key, { failure, attempt });
             }
         }
     }
 
     walk(root);
-    return failures;
+    return [...bestByKey.values()].map((entry) => entry.failure);
 }
 
 function toMap(arr: Failure[]) {
     const map = new Map<string, Failure>();
 
     for (const item of arr) {
-        const key = `${item.file}:${item.line}:${item.failure_type}`;
+        const key = failureDiffKey(item.file, item.failure_type);
         map.set(key, item);
     }
 
@@ -99,6 +154,6 @@ export function computeDiff(
         newFailures,
         unchangedFailures,
         fixedFailures,
-        blockingFailures
+        blockingFailures,
     };
 }
