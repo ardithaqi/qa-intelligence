@@ -63,6 +63,7 @@
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",
+        "test": "tsx --test src/**/*.test.ts",
         "prepare": "npm run build",
         "dev:diff": "ts-node src/cli/diff.ts --baseline baseline-artifacts --current artifacts --out failure-diff.json",
         "dev:comment": "ts-node src/cli/postComment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
