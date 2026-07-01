@@ -2,15 +2,13 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
-## Unreleased
+## 1.1.3
 
 ### Added
 
 - Unit tests for `computeDiff`, `failureIdentity`, `format`, and `history`
 - `npm test` script (Node built-in test runner via `tsx`)
 - Extracted history logic into `src/lib/history.ts`
-- GitHub Actions CI: test, build, and fixture-based diff CLI smoke test
-- Fixture artifact directories for CLI validation
 
 ## 1.1.2
 
