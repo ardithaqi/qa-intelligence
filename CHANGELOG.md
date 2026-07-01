@@ -2,6 +2,16 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.1.6
+
+### Added
+
+- `playwright/.gitignore` in init scaffold (ignores `.env`, artifacts, reports, cache)
+
+### Changed
+
+- README: document `AI_ANALYSIS=true` for local AI analysis
+
 ## 1.1.5
 
 ### Fixed
@@ -12,11 +22,6 @@ All notable changes to `qa-intelligence` are documented here.
 ### Added
 
 - `@types/node` in init template `package.json` (fixes TypeScript `node` types warning)
-- `playwright/.gitignore` in init scaffold (ignores `.env`, artifacts, reports, cache)
-
-### Changed
-
-- README: document `AI_ANALYSIS=true` for local AI analysis
 
 ## 1.1.4
 
