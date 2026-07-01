@@ -1,4 +1,6 @@
-import { test as base } from "@playwright/test";
+import { playwrightTest } from "./playwrightTest";
+
+const { test: base } = playwrightTest;
 import fs from "fs";
 import { getLogFilePath } from "../reporting/logger";
 import path from "path";

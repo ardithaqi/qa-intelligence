@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { analyzeFailureFile } from "../ai/failureAnalyzer";
+import {
+    FailureMeta,
+    selectMetaFilesForAnalysis,
+} from "../lib/selectMetaForAnalysis";
 
 function findMetaFiles(dir: string, results: string[] = []): string[] {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -18,6 +22,14 @@ function findMetaFiles(dir: string, results: string[] = []): string[] {
     return results;
 }
 
+function readMeta(metaPath: string): FailureMeta | null {
+    try {
+        return JSON.parse(fs.readFileSync(metaPath, "utf8")) as FailureMeta;
+    } catch {
+        return null;
+    }
+}
+
 export default async function globalTeardown() {
     if (process.env.AI_ANALYSIS !== "true") return;
 
@@ -28,11 +40,11 @@ export default async function globalTeardown() {
     if (!runDir || !fs.existsSync(runDir)) return;
 
     const metaFiles = findMetaFiles(runDir);
-
     if (metaFiles.length === 0) return;
 
+    const toAnalyze = selectMetaFilesForAnalysis(metaFiles, readMeta);
 
-    for (const metaPath of metaFiles) {
+    for (const metaPath of toAnalyze) {
         console.log(`Analyzing: ${metaPath}`);
 
         try {

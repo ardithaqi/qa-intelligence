@@ -1,4 +1,6 @@
-import { test as base, expect } from "@playwright/test";
+import { playwrightTest } from "./playwrightTest";
+
+const { test: base, expect } = playwrightTest;
 import { env } from "../config/env";
 import "./testHooks";
 

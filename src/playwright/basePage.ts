@@ -1,4 +1,4 @@
-import { Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { env } from "./baseTest";
 import { logger } from "../reporting/logger";
 

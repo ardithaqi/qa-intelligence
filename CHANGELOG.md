@@ -2,6 +2,17 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.1.5
+
+### Fixed
+
+- AI teardown analyzes one meta.json per test (no duplicate analysis on retries)
+- Resolve `@playwright/test` from consumer project (fixes `file:` / linked installs)
+
+### Added
+
+- `@types/node` in init template `package.json` (fixes TypeScript `node` types warning)
+
 ## 1.1.4
 
 ### Added
