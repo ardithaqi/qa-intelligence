@@ -8,6 +8,14 @@ function getArg(name: string): string | undefined {
 }
 
 async function main() {
+    const subcommand = process.argv[2];
+
+    if (subcommand === "init") {
+        const { main: runInit } = await import("./init");
+        await runInit();
+        return;
+    }
+
     const baseline = getArg("baseline") ?? "baseline-artifacts";
     const current = getArg("current") ?? "artifacts";
     const repo = getArg("repo");

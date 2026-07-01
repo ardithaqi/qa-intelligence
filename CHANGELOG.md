@@ -2,6 +2,18 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.1.4
+
+### Added
+
+- `npx qa-intelligence init` — scaffolds `playwright/` and `.github/workflows/qa-intelligence.yml`
+- `templates/` bundled in npm package (`playwright` config, example test, CI workflow)
+- `qa-intelligence-init` bin alias
+
+### Changed
+
+- README quick start uses `init` flow
+
 ## 1.1.3
 
 ### Added

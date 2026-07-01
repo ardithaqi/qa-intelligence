@@ -1,0 +1,11 @@
+{
+  "name": "e2e-tests",
+  "private": true,
+  "scripts": {
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.58.0",
+    "qa-intelligence": "^1.1.4"
+  }
+}

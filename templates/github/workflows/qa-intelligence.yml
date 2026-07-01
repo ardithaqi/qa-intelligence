@@ -1,0 +1,129 @@
+name: QA Intelligence CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: playwright
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Clean artifacts
+        if: always()
+        run: rm -rf artifacts
+
+      - name: Run Playwright tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_ANALYSIS: true
+          BASE_URL: https://your-app.example.com
+          HEADLESS: true
+          PW_WORKERS: 2
+          PW_RETRIES: 1
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+        run: |
+          set +e
+          npx playwright test
+          EXIT=$?
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then exit 0; fi
+          exit $EXIT
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright/playwright-report/
+
+      - name: Upload AI failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-failure-artifacts
+          path: playwright/artifacts/
+
+      - name: Parse AI failure reports
+        if: always()
+        run: |
+          echo "Parsing AI failure reports..."
+          if [ -d "artifacts" ]; then
+            find artifacts -name "ai.txt" | while read file; do
+              echo "-----"
+              echo "File: $file"
+              json=$(awk '/^{/{flag=1} flag' "$file")
+              echo "$json" | jq .
+            done
+          else
+            echo "No artifacts directory found."
+          fi
+
+      - name: Download baseline artifacts from main
+        if: always() && github.event_name == 'pull_request'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: qa-intelligence.yml
+          branch: ${{ github.base_ref }}
+          name: ai-failure-artifacts
+          path: baseline-artifacts
+          if_no_artifact_found: warn
+
+      - name: Debug baseline contents
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          echo "Baseline:"
+          ls -la ../baseline-artifacts || true
+          echo "Current:"
+          ls -la artifacts || true
+
+      - name: Compute failure diff
+        if: always() && github.event_name == 'pull_request'
+        run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts
+
+      - name: Restore failure history cache
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/cache@v4
+        with:
+          path: playwright/.cache
+          key: failure-history-${{ github.repository }}-${{ github.sha }}
+          restore-keys: |
+            failure-history-${{ github.repository }}-
+
+      - name: Update failure history (recurrence)
+        if: always() && github.event_name == 'pull_request'
+        run: npx qa-intelligence-history
+
+      - name: Comment PR with AI summary
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          npx qa-intelligence-comment \
+            --diff failure-diff.json \
+            --repo ${{ github.repository }} \
+            --pr ${{ github.event.pull_request.number }} \
+            --token $GITHUB_TOKEN

@@ -22,14 +22,30 @@ Core capabilities:
 | AI analysis | `src/ai/failureAnalyzer.ts` |
 | Diff engine | `src/lib/computeDiff.ts`, `src/lib/failureIdentity.ts` |
 | PR comment formatting | `src/lib/format.ts` |
-| CLI tools | `src/cli/` (`diff`, `history`, `postComment`) |
+| CLI tools | `src/cli/` (`init`, `diff`, `history`, `postComment`) |
+| Init templates | `templates/` |
 | Env validation | `src/config/env.ts` |
 
 ### CLI commands
 
+- `qa-intelligence init` — scaffold `playwright/` + `.github/workflows/qa-intelligence.yml` from `templates/`
 - `qa-intelligence-diff` — compare baseline vs current failures
 - `qa-intelligence-history` — enrich diff with recurrence; persists `.cache/failure-history.json`
 - `qa-intelligence-comment` — post/update GitHub PR summary comment
+
+### Publishing to npm
+
+Before each release, update in order:
+
+1. **`package.json`** — bump `version` (semver)
+2. **`CHANGELOG.md`** — move/add entry under the new version (not "Unreleased" only)
+3. **`README.md`** — if user-facing setup or CLI behavior changed
+4. **`AGENTS.md`** — if architecture, paths, or agent conventions changed
+5. **`templates/`** — if scaffold defaults changed (e.g. workflow, `playwright/package.json` version pin)
+
+Then: `npm test` → `npm run build` → `git commit` → `git push` → `npm publish`.
+
+Only `dist/` and `templates/` ship to npm (`files` in `package.json`). GitHub workflow in *this* repo (`.github/workflows/ci.yml`) is maintainer CI only.
 
 ### Conventions
 
