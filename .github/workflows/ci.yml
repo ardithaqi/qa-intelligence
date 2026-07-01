@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: Smoke test diff CLI against fixtures
+        run: |
+          node dist/cli/diff.js \
+            --baseline fixtures/baseline-artifacts \
+            --current fixtures/current-artifacts \
+            --out failure-diff.json \
+            --fail-on-blocking false
+          node -e "
+            const d = require('./failure-diff.json');
+            if (d.newFailures.length !== 2) throw new Error('expected 2 new failures');
+            if (d.unchangedFailures.length !== 1) throw new Error('expected 1 unchanged failure');
+            if (d.fixedFailures.length !== 1) throw new Error('expected 1 fixed failure');
+            if (d.blockingFailures.length !== 1) throw new Error('expected 1 blocking failure');
+          "

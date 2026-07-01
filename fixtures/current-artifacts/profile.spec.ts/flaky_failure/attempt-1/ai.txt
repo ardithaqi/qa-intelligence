@@ -1,0 +1,11 @@
+File: tests/profile.spec.ts
+Line: 8
+
+{
+  "file": "tests/profile.spec.ts",
+  "line": 8,
+  "failure_type": "timeout",
+  "severity": "low",
+  "confidence": 70,
+  "is_flaky_suspected": true
+}

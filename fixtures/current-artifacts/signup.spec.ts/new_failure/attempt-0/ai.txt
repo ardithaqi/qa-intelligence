@@ -1,0 +1,11 @@
+File: tests/signup.spec.ts
+Line: 20
+
+{
+  "file": "tests/signup.spec.ts",
+  "line": 20,
+  "failure_type": "selector_not_found",
+  "severity": "medium",
+  "confidence": 85,
+  "is_flaky_suspected": false
+}

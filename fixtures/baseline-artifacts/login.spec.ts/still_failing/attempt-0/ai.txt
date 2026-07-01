@@ -1,0 +1,11 @@
+File: tests/login.spec.ts
+Line: 10
+
+{
+  "file": "tests/login.spec.ts",
+  "line": 10,
+  "failure_type": "assertion_mismatch",
+  "severity": "medium",
+  "confidence": 90,
+  "is_flaky_suspected": false
+}

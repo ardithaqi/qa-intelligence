@@ -1,0 +1,11 @@
+File: tests/checkout.spec.ts
+Line: 5
+
+{
+  "file": "tests/checkout.spec.ts",
+  "line": 5,
+  "failure_type": "timeout",
+  "severity": "high",
+  "confidence": 88,
+  "is_flaky_suspected": false
+}
