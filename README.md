@@ -27,9 +27,18 @@ npm install            # installs qa-intelligence + @playwright/test (see playwr
 npx playwright install
 ```
 
+For **local runs with AI failure analysis** (generates `ai.txt` in artifacts — needed for `qa-intelligence-diff`), add to `playwright/.env`:
+
+```bash
+AI_ANALYSIS=true
+OPENAI_API_KEY=sk-...
+```
+
+CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself.
+
 `init` scaffolds:
 
-- `playwright/` — `.env.example`, `package.json`, `tsconfig.json`, `playwright.config.ts`, example test
+- `playwright/` — `.env.example`, `.gitignore`, `package.json`, `tsconfig.json`, `playwright.config.ts`, example test
 - `.github/workflows/qa-intelligence.yml` — PR diff, history, and comment (skip with `--no-ci`)
 
 **Then:** add `OPENAI_API_KEY` to GitHub secrets and set `BASE_URL` in the workflow file.

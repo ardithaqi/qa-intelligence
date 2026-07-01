@@ -9,6 +9,7 @@ interface ScaffoldEntry {
 
 const PLAYWRIGHT_SCAFFOLD: ScaffoldEntry[] = [
     { template: "playwright/.env.example", dest: "playwright/.env.example" },
+    { template: "playwright/.gitignore", dest: "playwright/.gitignore" },
     { template: "playwright/tsconfig.json", dest: "playwright/tsconfig.json" },
     {
         template: "playwright/playwright.config.ts",

@@ -22,6 +22,7 @@ describe("runInit", () => {
 
         assert.equal(skipped.length, 0);
         assert.ok(written.includes("playwright/playwright.config.ts"));
+        assert.ok(written.includes("playwright/.gitignore"));
         assert.ok(written.includes(".github/workflows/qa-intelligence.yml"));
         assert.ok(
             fs.existsSync(path.join(tempRoot, "playwright/tests/example.spec.ts"))
