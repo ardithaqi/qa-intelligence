@@ -2,6 +2,18 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.2.0
+
+### Added
+
+- Pluggable AI providers: `openai` (default), `anthropic`, and `openai-compatible`
+- Env-driven AI config: `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`
+- Unit tests for AI provider resolution and prompt building
+
+### Changed
+
+- `failureAnalyzer` delegates to provider registry; diff/flaky/blocking unchanged without AI keys
+
 ## 1.1.6
 
 ### Added

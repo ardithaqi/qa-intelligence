@@ -19,7 +19,7 @@ Core capabilities:
 | Area | Location |
 |------|----------|
 | Playwright hooks | `src/playwright/` |
-| AI analysis | `src/ai/failureAnalyzer.ts` |
+| AI analysis | `src/ai/failureAnalyzer.ts`, `src/ai/getProvider.ts`, `src/ai/providers/` |
 | Diff engine | `src/lib/computeDiff.ts`, `src/lib/failureIdentity.ts` |
 | PR comment formatting | `src/lib/format.ts` |
 | CLI tools | `src/cli/` (`init`, `diff`, `history`, `postComment`) |

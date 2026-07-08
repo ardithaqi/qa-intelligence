@@ -36,6 +36,41 @@ OPENAI_API_KEY=sk-...
 
 CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself.
 
+### AI providers
+
+Default provider is **OpenAI** (`gpt-4o-mini`). Configure via env:
+
+| Variable | Purpose |
+|----------|---------|
+| `AI_PROVIDER` | `openai` (default), `anthropic`, or `openai-compatible` |
+| `AI_MODEL` | Model name (provider-specific default if unset) |
+| `OPENAI_API_KEY` | API key for OpenAI (or fallback for `openai-compatible`) |
+| `ANTHROPIC_API_KEY` | API key for Anthropic |
+| `AI_API_KEY` | Generic key fallback for any provider |
+| `AI_BASE_URL` | Required for `openai-compatible` (Azure OpenAI, Ollama, LiteLLM, etc.) |
+
+Examples:
+
+```bash
+# OpenAI (default)
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+AI_MODEL=gpt-4o-mini
+
+# Anthropic
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+AI_MODEL=claude-3-5-haiku-latest
+
+# OpenAI-compatible (Ollama, Azure, etc.)
+AI_PROVIDER=openai-compatible
+AI_BASE_URL=http://localhost:11434/v1
+AI_API_KEY=ollama
+AI_MODEL=llama3
+```
+
+Diff, flaky detection, and PR blocking work **without AI** — analysis is skipped when no API key is set.
+
 `init` scaffolds:
 
 - `playwright/` — `.env.example`, `.gitignore`, `package.json`, `tsconfig.json`, `playwright.config.ts`, example test
