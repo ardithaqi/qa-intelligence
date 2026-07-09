@@ -1,5 +1,7 @@
 import fs from "fs";
+import path from "path";
 import { failureDiffKey } from "./failureIdentity";
+import type { DiffResult } from "./types";
 
 export const MAX_RUNS = 20;
 
@@ -79,4 +81,40 @@ export function collectCurrentKeys(failures: Failure[]): Set<string> {
         keys.add(failureKey(f));
     }
     return keys;
+}
+
+export function saveHistory(historyPath: string, history: History): void {
+    fs.mkdirSync(path.dirname(historyPath), { recursive: true });
+    fs.writeFileSync(historyPath, JSON.stringify(history, null, 2));
+}
+
+export function enrichDiffWithHistory(
+    diff: DiffResult,
+    historyPath: string,
+    runMeta?: { sha?: string; timestamp?: string }
+): DiffResult {
+    const history = loadHistory(historyPath);
+    const currentKeys = collectCurrentKeys([
+        ...(diff.newFailures ?? []),
+        ...(diff.unchangedFailures ?? []),
+    ]);
+    const thisRun: RunRecord = {
+        sha: runMeta?.sha ?? "",
+        timestamp: runMeta?.timestamp ?? new Date().toISOString(),
+        failureKeys: [...currentKeys],
+    };
+
+    const result: DiffResult = {
+        newFailures: enrichFailures(diff.newFailures ?? [], history, thisRun),
+        unchangedFailures: enrichFailures(
+            diff.unchangedFailures ?? [],
+            history,
+            thisRun
+        ),
+        fixedFailures: enrichFailures(diff.fixedFailures ?? [], history, thisRun),
+        blockingFailures: diff.blockingFailures,
+    };
+
+    saveHistory(historyPath, appendHistoryRun(history, thisRun));
+    return result;
 }

@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, it } from "node:test";
 import {
     MAX_RUNS,
     appendHistoryRun,
+    enrichDiffWithHistory,
     enrichFailures,
     failureKey,
+    loadHistory,
+    saveHistory,
     type Failure,
     type History,
     type RunRecord,
@@ -109,5 +115,46 @@ describe("appendHistoryRun", () => {
         assert.equal(updated.runs.length, MAX_RUNS);
         assert.equal(updated.runs[0].sha, "sha-1");
         assert.equal(updated.runs.at(-1)?.sha, "new-sha");
+    });
+});
+
+describe("saveHistory and enrichDiffWithHistory", () => {
+    it("round-trips history through save and load", () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-intel-"));
+        const historyPath = path.join(tmpDir, "cache", "failure-history.json");
+        const history: History = {
+            runs: [
+                {
+                    sha: "abc",
+                    timestamp: "2026-06-01T00:00:00.000Z",
+                    failureKeys: [failureKey(sampleFailure)],
+                },
+            ],
+        };
+
+        saveHistory(historyPath, history);
+        assert.deepEqual(loadHistory(historyPath), history);
+
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("enriches diff buckets and appends a run", () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-intel-"));
+        const historyPath = path.join(tmpDir, "failure-history.json");
+
+        const enriched = enrichDiffWithHistory(
+            {
+                newFailures: [sampleFailure],
+                unchangedFailures: [],
+                fixedFailures: [],
+            },
+            historyPath,
+            { sha: "run-1", timestamp: "2026-06-01T00:00:00.000Z" }
+        );
+
+        assert.equal(enriched.newFailures[0]?.occurrence_count, 1);
+        assert.equal(loadHistory(historyPath).runs.length, 1);
+
+        fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 });

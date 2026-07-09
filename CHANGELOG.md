@@ -2,6 +2,14 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.3.0
+
+### Added
+
+- Programmatic API via package root: `import { computeDiff, formatDiffComment, enrichDiffWithHistory } from "qa-intelligence"`
+- `enrichDiffWithHistory` and `saveHistory` helpers in `src/lib/history.ts`
+- Unit tests for package entry exports
+
 ## 1.2.0
 
 ### Added

@@ -127,12 +127,33 @@ npx qa-intelligence init --force      # overwrite files that already exist
 
 | Import | What you get |
 |--------|--------------|
+| `qa-intelligence` | `computeDiff`, `formatDiffComment`, `enrichDiffWithHistory`, history helpers, types |
 | `qa-intelligence/playwright` | `test`, `expect`, `env` |
 | `qa-intelligence/playwright/globalSetup` | Artifact run setup |
 | `qa-intelligence/playwright/globalTeardown` | AI failure analysis |
 | `qa-intelligence/playwright/basePage` | Base page object |
 | `qa-intelligence/playwright/steps` | `step()` helper |
 | `qa-intelligence/config/env` | Validated env config |
+
+### Programmatic API
+
+Use the same functions as the CLIs in custom CI scripts (GitLab, Jenkins, Slack bots, etc.):
+
+```ts
+import {
+  computeDiff,
+  enrichDiffWithHistory,
+  formatDiffComment,
+} from "qa-intelligence";
+
+const diff = computeDiff("baseline-artifacts", "artifacts");
+const enriched = enrichDiffWithHistory(diff, ".cache/failure-history.json", {
+  sha: process.env.CI_COMMIT_SHA,
+});
+const comment = formatDiffComment(enriched);
+```
+
+Diff, flaky detection, and blocking work without AI keys — same as the CLI.
 
 ---
 

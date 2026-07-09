@@ -5,13 +5,7 @@
  */
 
 import fs from "fs";
-import path from "path";
-import {
-    appendHistoryRun,
-    collectCurrentKeys,
-    enrichFailures,
-    loadHistory,
-} from "../lib/history";
+import { enrichDiffWithHistory } from "../lib/history";
 
 const HISTORY_PATH = ".cache/failure-history.json";
 
@@ -23,41 +17,30 @@ function main() {
     }
 
     const diff = JSON.parse(fs.readFileSync(diffPath, "utf8"));
-    const { newFailures, unchangedFailures, fixedFailures } = diff;
 
-    const currentKeys = collectCurrentKeys([...newFailures, ...unchangedFailures]);
-    const history = loadHistory(HISTORY_PATH);
-    const thisRun = {
+    const result = enrichDiffWithHistory(diff, HISTORY_PATH, {
         sha: process.env.GITHUB_SHA ?? "",
-        timestamp: new Date().toISOString(),
-        failureKeys: [...currentKeys],
-    };
+    });
 
-    const enrichedNew = enrichFailures(newFailures, history, thisRun);
-    const enrichedUnchanged = enrichFailures(
-        unchangedFailures,
-        history,
-        thisRun
-    );
-    const enrichedFixed = enrichFailures(fixedFailures, history, thisRun);
-
-    const updatedHistory = appendHistoryRun(history, thisRun);
-
-    fs.mkdirSync(path.dirname(HISTORY_PATH), { recursive: true });
     fs.writeFileSync(
-        HISTORY_PATH,
-        JSON.stringify(updatedHistory, null, 2)
+        diffPath,
+        JSON.stringify(
+            {
+                newFailures: result.newFailures,
+                unchangedFailures: result.unchangedFailures,
+                fixedFailures: result.fixedFailures,
+            },
+            null,
+            2
+        )
     );
 
-    const result = {
-        newFailures: enrichedNew,
-        unchangedFailures: enrichedUnchanged,
-        fixedFailures: enrichedFixed,
-    };
-    fs.writeFileSync(diffPath, JSON.stringify(result, null, 2));
+    const historyRuns = JSON.parse(
+        fs.readFileSync(HISTORY_PATH, "utf8")
+    ).runs.length;
     console.log(
         "Updated failure-diff with recurrence; history runs:",
-        updatedHistory.runs.length
+        historyRuns
     );
 }
 

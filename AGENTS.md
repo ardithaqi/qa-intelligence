@@ -22,6 +22,7 @@ Core capabilities:
 | AI analysis | `src/ai/failureAnalyzer.ts`, `src/ai/getProvider.ts`, `src/ai/providers/` |
 | Diff engine | `src/lib/computeDiff.ts`, `src/lib/failureIdentity.ts` |
 | PR comment formatting | `src/lib/format.ts` |
+| Programmatic API | `src/index.ts` — `computeDiff`, `formatDiffComment`, history helpers |
 | CLI tools | `src/cli/` (`init`, `diff`, `history`, `postComment`) |
 | Init templates | `templates/` |
 | Env validation | `src/config/env.ts` |
