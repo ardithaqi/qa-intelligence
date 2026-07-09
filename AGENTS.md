@@ -99,10 +99,9 @@ Work top-down unless the user scopes a specific tier or item.
    - Support env-driven provider/model (`AI_PROVIDER`, `AI_MODEL`)
    - Graceful degradation: diff / flaky / blocking without AI
 
-6. **Richer flaky detection**
-   - Beyond retry-aware pass-after-fail
-   - Track pass/fail flip rate per test via history cache
-   - "Flaky Watchlist" section in PR comments
+6. **Richer flaky detection** ✅ (watchlist)
+   - Flaky Watchlist in PR comments from history cache pass/fail flip rate per test file
+   - Retry-aware single-run flaky detection unchanged (`Flaky` section)
 
 7. **Programmatic API exports**
    - Export core from package entry, e.g. `computeDiff`, `formatDiffComment`

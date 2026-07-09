@@ -2,6 +2,14 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.4.0
+
+### Added
+
+- **Flaky Watchlist** in PR comments — tests intermittent across recent PR CI runs (from `.cache/failure-history.json`)
+- Omits tests already shown as **New Issues** or **Still Failing** on the current PR
+- `computeFlakyWatchlist` exported from package root for custom integrations
+
 ## 1.3.0
 
 ### Added

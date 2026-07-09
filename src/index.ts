@@ -9,6 +9,15 @@ export type { Failure as DiffFailure } from "./lib/computeDiff";
 export { formatDiffComment, hasFailureChanges } from "./lib/format";
 
 export {
+    computeFlakyWatchlist,
+    DEFAULT_MIN_FAIL_COUNT,
+    DEFAULT_MIN_RUNS,
+    filterWatchlistForCurrentDiff,
+    testFileFromFailure,
+    testFileFromFailureKey,
+} from "./lib/flakyWatchlist";
+
+export {
     appendHistoryRun,
     collectCurrentKeys,
     enrichDiffWithHistory,
@@ -18,12 +27,7 @@ export {
     saveHistory,
     MAX_RUNS,
 } from "./lib/history";
-export type {
-    EnrichedFailure,
-    Failure as HistoryFailure,
-    History,
-    RunRecord,
-} from "./lib/history";
+export type { EnrichedFailure, Failure as HistoryFailure } from "./lib/history";
 
 export {
     failureDiffKey,
@@ -37,5 +41,8 @@ export type {
     DiffResult,
     FailureKey,
     FailureType,
+    FlakyWatchlistEntry,
+    History,
+    RunRecord,
     Severity,
 } from "./lib/types";

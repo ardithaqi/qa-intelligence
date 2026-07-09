@@ -23,9 +23,27 @@ export type AiFailure = {
 
 export type FailureKey = string;
 
+export type FlakyWatchlistEntry = {
+    testFile: string;
+    failCount: number;
+    totalRuns: number;
+    failRate: number;
+};
+
+export type RunRecord = {
+    sha: string;
+    timestamp: string;
+    failureKeys: string[];
+};
+
+export type History = {
+    runs: RunRecord[];
+};
+
 export type DiffResult = {
     newFailures: AiFailure[];
     unchangedFailures: AiFailure[];
     fixedFailures: AiFailure[];
     blockingFailures?: AiFailure[];
+    flakyWatchlist?: FlakyWatchlistEntry[];
 };

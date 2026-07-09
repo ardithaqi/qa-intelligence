@@ -29,6 +29,7 @@ function main() {
                 newFailures: result.newFailures,
                 unchangedFailures: result.unchangedFailures,
                 fixedFailures: result.fixedFailures,
+                flakyWatchlist: result.flakyWatchlist ?? [],
             },
             null,
             2

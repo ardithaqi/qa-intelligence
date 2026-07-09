@@ -106,9 +106,12 @@ npx qa-intelligence init --force      # overwrite files that already exist
 | Failure type | Blocks PR? | Shown in comment |
 |--------------|------------|------------------|
 | New (not flaky) | Yes | New Issues |
-| Flaky | No | Flaky |
+| Flaky (retry pass) | No | Flaky |
 | Still failing from base branch | No | Still Failing |
 | Fixed since base branch | No | Fixed Issues |
+| Intermittent across CI runs | No | Flaky Watchlist |
+
+**Flaky Watchlist** uses the history cache (last 20 PR runs, repo-wide). A test appears when it showed up in the failure report on at least 2 runs but not every run. Tests already listed as **New Issues** or **Still Failing** on this PR are omitted.
 
 ---
 

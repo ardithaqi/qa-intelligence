@@ -1,4 +1,18 @@
-import { AiFailure, DiffResult } from "./types";
+import { AiFailure, DiffResult, FlakyWatchlistEntry } from "./types";
+
+function formatWatchlistSection(entries: FlakyWatchlistEntry[]): string {
+    if (entries.length === 0) return "";
+
+    let section = `### Flaky Watchlist (${entries.length})\n\n`;
+    section +=
+        "For visibility only — intermittent across recent CI runs. **Does not block merge.**\n\n";
+
+    for (const entry of entries) {
+        section += `• ${entry.testFile} — unstable in ${entry.failCount} of last ${entry.totalRuns} CI runs\n`;
+    }
+
+    return section + "\n";
+}
 
 function recurrenceSuffix(f: AiFailure): string {
     if (f.occurrence_count == null) return "";
@@ -62,6 +76,7 @@ export function formatDiffComment(diff: DiffResult): string {
     body += formatSection("Flaky", flaky, false);
     body += formatSection("Still Failing", unchangedFailures);
     body += formatSection("Fixed Issues", fixedFailures);
+    body += formatWatchlistSection(diff.flakyWatchlist ?? []);
 
     return body;
 }
@@ -70,6 +85,7 @@ export function hasFailureChanges(diff: DiffResult): boolean {
     return (
         (diff.newFailures?.length ?? 0) > 0 ||
         (diff.unchangedFailures?.length ?? 0) > 0 ||
-        (diff.fixedFailures?.length ?? 0) > 0
+        (diff.fixedFailures?.length ?? 0) > 0 ||
+        (diff.flakyWatchlist?.length ?? 0) > 0
     );
 }

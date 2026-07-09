@@ -26,6 +26,25 @@ describe("hasFailureChanges", () => {
             true
         );
     });
+
+    it("returns true when only flaky watchlist has entries", () => {
+        assert.equal(
+            hasFailureChanges({
+                newFailures: [],
+                unchangedFailures: [],
+                fixedFailures: [],
+                flakyWatchlist: [
+                    {
+                        testFile: "tests/flaky.spec.ts",
+                        failCount: 3,
+                        totalRuns: 5,
+                        failRate: 0.6,
+                    },
+                ],
+            }),
+            true
+        );
+    });
 });
 
 describe("formatDiffComment", () => {
@@ -98,5 +117,27 @@ describe("formatDiffComment", () => {
 
         assert.match(body, /Commit: abc1234/);
         assert.match(body, /### Fixed Issues \(1\)/);
+    });
+
+    it("renders flaky watchlist section", () => {
+        const body = formatDiffComment({
+            newFailures: [],
+            unchangedFailures: [],
+            fixedFailures: [],
+            flakyWatchlist: [
+                {
+                    testFile: "tests/checkout.spec.ts",
+                    failCount: 4,
+                    totalRuns: 10,
+                    failRate: 0.4,
+                },
+            ],
+        });
+
+        assert.match(body, /### Flaky Watchlist \(1\)/);
+        assert.match(
+            body,
+            /tests\/checkout\.spec\.ts — unstable in 4 of last 10 CI runs/
+        );
     });
 });

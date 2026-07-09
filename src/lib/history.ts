@@ -1,7 +1,10 @@
 import fs from "fs";
 import path from "path";
+import { computeFlakyWatchlist, filterWatchlistForCurrentDiff } from "./flakyWatchlist";
 import { failureDiffKey } from "./failureIdentity";
-import type { DiffResult } from "./types";
+import type { DiffResult, History, RunRecord } from "./types";
+
+export type { History, RunRecord } from "./types";
 
 export const MAX_RUNS = 20;
 
@@ -17,16 +20,6 @@ export interface Failure {
 export interface EnrichedFailure extends Failure {
     first_seen?: string;
     occurrence_count?: number;
-}
-
-export interface RunRecord {
-    sha: string;
-    timestamp: string;
-    failureKeys: string[];
-}
-
-export interface History {
-    runs: RunRecord[];
 }
 
 export function failureKey(f: Failure): string {
@@ -104,6 +97,8 @@ export function enrichDiffWithHistory(
         failureKeys: [...currentKeys],
     };
 
+    const updatedHistory = appendHistoryRun(history, thisRun);
+
     const result: DiffResult = {
         newFailures: enrichFailures(diff.newFailures ?? [], history, thisRun),
         unchangedFailures: enrichFailures(
@@ -113,8 +108,12 @@ export function enrichDiffWithHistory(
         ),
         fixedFailures: enrichFailures(diff.fixedFailures ?? [], history, thisRun),
         blockingFailures: diff.blockingFailures,
+        flakyWatchlist: filterWatchlistForCurrentDiff(
+            computeFlakyWatchlist(updatedHistory),
+            diff
+        ),
     };
 
-    saveHistory(historyPath, appendHistoryRun(history, thisRun));
+    saveHistory(historyPath, updatedHistory);
     return result;
 }

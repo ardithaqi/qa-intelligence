@@ -157,4 +157,89 @@ describe("saveHistory and enrichDiffWithHistory", () => {
 
         fs.rmSync(tmpDir, { recursive: true, force: true });
     });
+
+    it("attaches flaky watchlist when history shows intermittent failures", () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-intel-"));
+        const historyPath = path.join(tmpDir, "failure-history.json");
+        const key = failureKey(sampleFailure);
+
+        saveHistory(historyPath, {
+            runs: [
+                {
+                    sha: "1",
+                    timestamp: "2026-05-01T00:00:00.000Z",
+                    failureKeys: [key],
+                },
+                {
+                    sha: "2",
+                    timestamp: "2026-05-02T00:00:00.000Z",
+                    failureKeys: [],
+                },
+                {
+                    sha: "3",
+                    timestamp: "2026-05-03T00:00:00.000Z",
+                    failureKeys: [key],
+                },
+            ],
+        });
+
+        const enriched = enrichDiffWithHistory(
+            {
+                newFailures: [],
+                unchangedFailures: [],
+                fixedFailures: [],
+            },
+            historyPath,
+            { sha: "4", timestamp: "2026-05-04T00:00:00.000Z" }
+        );
+
+        assert.equal(enriched.flakyWatchlist?.length, 1);
+        assert.equal(
+            enriched.flakyWatchlist?.[0].testFile,
+            "tests/login.spec.ts"
+        );
+        assert.equal(enriched.flakyWatchlist?.[0].failCount, 2);
+
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("omits watchlist entries still failing on this PR", () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-intel-"));
+        const historyPath = path.join(tmpDir, "failure-history.json");
+        const key = failureKey(sampleFailure);
+
+        saveHistory(historyPath, {
+            runs: [
+                {
+                    sha: "1",
+                    timestamp: "2026-05-01T00:00:00.000Z",
+                    failureKeys: [key],
+                },
+                {
+                    sha: "2",
+                    timestamp: "2026-05-02T00:00:00.000Z",
+                    failureKeys: [],
+                },
+                {
+                    sha: "3",
+                    timestamp: "2026-05-03T00:00:00.000Z",
+                    failureKeys: [key],
+                },
+            ],
+        });
+
+        const enriched = enrichDiffWithHistory(
+            {
+                newFailures: [],
+                unchangedFailures: [sampleFailure],
+                fixedFailures: [],
+            },
+            historyPath,
+            { sha: "4", timestamp: "2026-05-04T00:00:00.000Z" }
+        );
+
+        assert.deepEqual(enriched.flakyWatchlist, []);
+
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
 });
