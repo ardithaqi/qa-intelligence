@@ -30,6 +30,7 @@ export function buildFailureAnalysisPrompt(input: FailureAnalysisInput): string 
         - confidence must reflect how strongly the evidence supports the classification.
         - For direct numeric assertion mismatches (e.g. expect(5).toBe(6)), confidence MUST be >= 90.
         - expected and received must be numbers if numeric.
+        - If metadata includes "file" and "line", the JSON output MUST use those exact values.
         
         Failure metadata:
         ${JSON.stringify(meta, null, 2)}

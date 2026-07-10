@@ -50,12 +50,32 @@ test.afterEach(async ({ page }, testInfo) => {
 
     const severity = isFlaky ? "low" : "medium";
 
+    let errorMessage = testInfo.error?.message;
+    let stack = testInfo.error?.stack;
+
+    if (isFlaky) {
+      const prevMetaPath = path.join(
+        runDir,
+        specName,
+        safeTitle,
+        `attempt-${testInfo.retry - 1}`,
+        "meta.json"
+      );
+      if (fs.existsSync(prevMetaPath)) {
+        const prev = JSON.parse(fs.readFileSync(prevMetaPath, "utf8"));
+        errorMessage = errorMessage ?? prev.errorMessage;
+        stack = stack ?? prev.stack;
+      }
+    }
+
     const meta = {
       title: testInfo.title,
       status: testInfo.status,
       expectedStatus: testInfo.expectedStatus,
-      errorMessage: testInfo.error?.message,
-      stack: testInfo.error?.stack,
+      file: testInfo.file,
+      line: testInfo.line,
+      errorMessage,
+      stack,
       url: page.url(),
       project: testInfo.project.name,
       duration: testInfo.duration,

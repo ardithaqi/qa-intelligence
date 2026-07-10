@@ -2,6 +2,12 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.4.3
+
+### Fixed
+
+- Flaky pass attempts now record test `file`/`line` in `meta.json` and reuse the failed attempt's error for AI analysis, so PR comments show the real spec path instead of a guessed one
+
 ## 1.4.2
 
 ### Fixed
