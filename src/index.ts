@@ -6,7 +6,11 @@
 export { computeDiff } from "./lib/computeDiff";
 export type { Failure as DiffFailure } from "./lib/computeDiff";
 
-export { formatDiffComment, hasFailureChanges } from "./lib/format";
+export {
+    formatClearDiffComment,
+    formatDiffComment,
+    hasFailureChanges,
+} from "./lib/format";
 
 export {
     computeFlakyWatchlist,

@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import fs from "fs";
-import { formatDiffComment, hasFailureChanges } from "../lib/format";
+import {
+    formatClearDiffComment,
+    formatDiffComment,
+    hasFailureChanges,
+} from "../lib/format";
 import { DiffResult } from "../lib/types";
 import { Octokit } from "@octokit/rest";
 
@@ -8,6 +12,57 @@ function getArg(name: string): string | undefined {
     const idx = process.argv.indexOf(`--${name}`);
     if (idx === -1) return undefined;
     return process.argv[idx + 1];
+}
+
+const COMMENT_HEADER = "## AI Failure Diff Summary";
+
+async function findExistingComment(
+    octokit: Octokit,
+    owner: string,
+    repo: string,
+    issue_number: number
+) {
+    const { data: comments } = await octokit.issues.listComments({
+        owner,
+        repo,
+        issue_number,
+        per_page: 100,
+    });
+
+    return comments.find(
+        (c) =>
+            c.user?.type === "Bot" &&
+            typeof c.body === "string" &&
+            c.body.startsWith(COMMENT_HEADER)
+    );
+}
+
+async function upsertComment(
+    octokit: Octokit,
+    owner: string,
+    repo: string,
+    issue_number: number,
+    existing: { id: number } | undefined,
+    body: string
+) {
+    if (existing) {
+        await octokit.issues.updateComment({
+            owner,
+            repo,
+            comment_id: existing.id,
+            body,
+        });
+        console.log("Updated existing AI diff comment.");
+        return;
+    }
+
+    await octokit.issues.createComment({
+        owner,
+        repo,
+        issue_number,
+        body,
+    });
+    console.log("Created new AI diff comment.");
 }
 
 async function main() {
@@ -29,47 +84,40 @@ async function main() {
     const raw = fs.readFileSync(diffPath, "utf8");
     const diff = JSON.parse(raw) as DiffResult;
 
-    if (!hasFailureChanges(diff)) {
-        console.log("No failure changes. Skipping comment.");
-        return;
-    }
-
-    const body = formatDiffComment(diff);
-
     const octokit = new Octokit({ auth: token });
-
-    // Find existing comment to update
-    const { data: comments } = await octokit.issues.listComments({
+    const existing = await findExistingComment(
+        octokit,
         owner,
         repo,
-        issue_number,
-        per_page: 100,
-    });
-
-    const existing = comments.find(
-        (c) =>
-            c.user?.type === "Bot" &&
-            typeof c.body === "string" &&
-            c.body.startsWith("## AI Failure Diff Summary")
+        issue_number
     );
 
-    if (existing) {
-        await octokit.issues.updateComment({
-            owner,
-            repo,
-            comment_id: existing.id,
-            body,
-        });
-        console.log("Updated existing AI diff comment.");
-    } else {
-        await octokit.issues.createComment({
+    if (!hasFailureChanges(diff)) {
+        if (!existing) {
+            console.log("No failure changes. Skipping comment.");
+            return;
+        }
+
+        await upsertComment(
+            octokit,
             owner,
             repo,
             issue_number,
-            body,
-        });
-        console.log("Created new AI diff comment.");
+            existing,
+            formatClearDiffComment()
+        );
+        console.log("Cleared AI diff comment — all tests passed.");
+        return;
     }
+
+    await upsertComment(
+        octokit,
+        owner,
+        repo,
+        issue_number,
+        existing,
+        formatDiffComment(diff)
+    );
 }
 
 main().catch((e) => {

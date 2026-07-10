@@ -2,6 +2,12 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.4.2
+
+### Fixed
+
+- PR comment now updates to an all-clear summary when a previously failing PR run passes, instead of leaving a stale **New Issues** comment
+
 ## 1.4.1
 
 ### Fixed
