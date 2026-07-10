@@ -109,9 +109,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: playwright/.cache
-          key: failure-history-${{ github.repository }}-${{ github.sha }}
-          restore-keys: |
-            failure-history-${{ github.repository }}-
+          # Repo-scoped key so recurrence + Flaky Watchlist persist across PR runs.
+          # Do not include github.sha — that creates a new cache entry every commit.
+          key: failure-history-${{ github.repository }}
 
       - name: Update failure history (recurrence)
         if: always() && github.event_name == 'pull_request'

@@ -2,6 +2,16 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.4.1
+
+### Fixed
+
+- Init workflow cache key for failure history: repo-scoped (`failure-history-${{ github.repository }}`) instead of per-commit SHA, so recurrence and Flaky Watchlist persist across PR runs
+
+### Changed
+
+- README: document failure history caching in CI and how to fix existing workflows
+
 ## 1.4.0
 
 ### Added

@@ -107,8 +107,9 @@ Work top-down unless the user scopes a specific tier or item.
    - Export core from package entry, e.g. `computeDiff`, `formatDiffComment`
    - Enables GitLab, CircleCI, Jenkins, Slack bots without forking
 
-8. **Persistent history in CI**
-   - Document or automate `actions/cache` for `.cache/failure-history.json`
+8. **Persistent history in CI** ✅
+   - Init template uses repo-scoped `actions/cache` key for `.cache/failure-history.json`
+   - README documents the pattern and migration from SHA-based keys
    - Optional S3/GCS persistence for recurrence tracking across runs
 
 ### Tier 3 — Reach & ecosystem

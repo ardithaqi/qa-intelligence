@@ -113,6 +113,23 @@ npx qa-intelligence init --force      # overwrite files that already exist
 
 **Flaky Watchlist** uses the history cache (last 20 PR runs, repo-wide). A test appears when it showed up in the failure report on at least 2 runs but not every run. Tests already listed as **New Issues** or **Still Failing** on this PR are omitted.
 
+### Failure history in CI
+
+Recurrence (`3rd time since…`) and the **Flaky Watchlist** need `.cache/failure-history.json` to survive between runs. The `init` workflow uses `actions/cache` on `playwright/.cache` with a **repo-scoped key**:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: playwright/.cache
+    key: failure-history-${{ github.repository }}
+```
+
+Use a stable key per repository — **not** `${{ github.sha }}`, or every commit starts with an empty history.
+
+If you scaffolded CI before this fix, update your workflow or re-run `npx qa-intelligence init --force`.
+
+**Already using qa-intelligence?** Replace any cache key like `failure-history-${{ github.repository }}-${{ github.sha }}` with the repo-only key above.
+
 ---
 
 ## CLI
