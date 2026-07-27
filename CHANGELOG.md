@@ -2,6 +2,12 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.4.4
+
+### Fixed
+
+- `qa-intelligence init` no longer fails on install from npm: scaffold `playwright/.gitignore` is shipped as `templates/playwright/gitignore` (npm always omits `.gitignore` files from packages)
+
 ## 1.4.3
 
 ### Fixed
