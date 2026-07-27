@@ -13,6 +13,8 @@ export interface AiUsage {
 export interface AiAnalysisResult {
     content: string;
     usage?: AiUsage;
+    /** Approximate USD cost for this call; undefined when usage is missing. */
+    estimatedCostUsd?: number;
 }
 
 export interface AiProvider {

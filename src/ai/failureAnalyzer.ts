@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { createAiProvider } from "./getProvider";
 import { buildFailureAnalysisPrompt } from "./prompt";
+import { AiAnalysisResult } from "./types";
 
 function findLatestMetaFile(root = "artifacts"): string | null {
     if (!fs.existsSync(root)) return null;
@@ -32,7 +33,9 @@ function findLatestMetaFile(root = "artifacts"): string | null {
     return latestPath;
 }
 
-export async function analyzeFailureFile(jsonFilePath: string): Promise<string | null> {
+export async function analyzeFailureFile(
+    jsonFilePath: string
+): Promise<AiAnalysisResult | null> {
     const provider = createAiProvider();
     if (!provider) return null;
 
@@ -49,10 +52,7 @@ export async function analyzeFailureFile(jsonFilePath: string): Promise<string |
         html,
     });
 
-    console.log(`Using AI provider: ${provider.name} (${provider.model})`);
-
-    const result = await provider.analyze(prompt);
-    return result?.content ?? null;
+    return provider.analyze(prompt);
 }
 
 export async function analyzeLatestFailure(): Promise<string | null> {
@@ -64,5 +64,6 @@ export async function analyzeLatestFailure(): Promise<string | null> {
     }
 
     console.log(`Analyzing latest failure: ${latestMetaFile}`);
-    return analyzeFailureFile(latestMetaFile);
+    const result = await analyzeFailureFile(latestMetaFile);
+    return result?.content ?? null;
 }

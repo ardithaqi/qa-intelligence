@@ -27,14 +27,14 @@ npm install            # installs qa-intelligence + @playwright/test (see playwr
 npx playwright install
 ```
 
-For **local runs with AI failure analysis** (generates `ai.txt` in artifacts — needed for `qa-intelligence-diff`), add to `playwright/.env`:
+For **local runs with AI failure analysis** (generates per-failure `ai.txt` plus a run-level `ai-summary.md` — needed for `qa-intelligence-diff`), add to `playwright/.env`:
 
 ```bash
 AI_ANALYSIS=true
 OPENAI_API_KEY=sk-...
 ```
 
-CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself.
+CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. Teardown prints one cost rollup line; set `AI_VERBOSE=true` for per-call token/cost logs.
 
 ### AI providers
 
@@ -48,6 +48,7 @@ Default provider is **OpenAI** (`gpt-4o-mini`). Configure via env:
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
 | `AI_API_KEY` | Generic key fallback for any provider |
 | `AI_BASE_URL` | Required for `openai-compatible` (Azure OpenAI, Ollama, LiteLLM, etc.) |
+| `AI_VERBOSE` | `true` to log per-call token usage and estimated cost |
 
 Examples:
 

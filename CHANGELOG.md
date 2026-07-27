@@ -2,6 +2,14 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.4.5
+
+### Added
+
+- End-of-run AI cost rollup in teardown (one line instead of per-failure noise)
+- Combined `ai-summary.md` under the run artifact dir with all `ai.txt` analyses
+- `AI_VERBOSE=true` restores per-call token/cost logs
+
 ## 1.4.4
 
 ### Fixed
