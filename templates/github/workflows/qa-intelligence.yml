@@ -12,6 +12,10 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: qa-intelligence-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -20,11 +24,13 @@ jobs:
         working-directory: playwright
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
+          cache-dependency-path: playwright/package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -32,80 +38,68 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Clean artifacts
-        if: always()
-        run: rm -rf artifacts
-
       - name: Run Playwright tests
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AI_ANALYSIS: true
+          AI_ANALYSIS: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
           BASE_URL: https://your-app.example.com
           HEADLESS: true
           PW_WORKERS: 2
           PW_RETRIES: 1
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
-        run: |
-          set +e
-          npx playwright test
-          EXIT=$?
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then exit 0; fi
-          exit $EXIT
+        run: npx playwright test
 
       - name: Upload Playwright HTML report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_id }}
           path: playwright/playwright-report/
+          retention-days: 14
 
-      - name: Upload AI failure artifacts
+      - name: Upload failure artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: ai-failure-artifacts
+          name: playwright-artifacts-${{ github.run_id }}
           path: playwright/artifacts/
+          retention-days: 14
+          if-no-files-found: ignore
 
-      - name: Parse AI failure reports
-        if: always()
-        run: |
-          echo "Parsing AI failure reports..."
-          if [ -d "artifacts" ]; then
-            find artifacts -name "ai.txt" | while read file; do
-              echo "-----"
-              echo "File: $file"
-              json=$(awk '/^{/{flag=1} flag' "$file")
-              echo "$json" | jq .
-            done
-          else
-            echo "No artifacts directory found."
-          fi
+      - name: Upload baseline artifacts (default branch)
+        if: always() && github.event_name == 'push'
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-artifacts-baseline
+          path: playwright/artifacts/
+          retention-days: 30
+          if-no-files-found: ignore
 
-      - name: Download baseline artifacts from main
+      - name: Download baseline artifacts from default branch
+        id: download-baseline
         if: always() && github.event_name == 'pull_request'
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v21
         with:
           workflow: qa-intelligence.yml
           branch: ${{ github.base_ref }}
-          name: ai-failure-artifacts
+          name: playwright-artifacts-baseline
           path: baseline-artifacts
-          if_no_artifact_found: warn
+          if_no_artifact_found: ignore
 
-      - name: Debug baseline contents
+      - name: Check baseline artifact
+        id: baseline
         if: always() && github.event_name == 'pull_request'
+        working-directory: .
         run: |
-          echo "Baseline:"
-          ls -la ../baseline-artifacts || true
-          echo "Current:"
-          ls -la artifacts || true
-
-      - name: Compute failure diff
-        if: always() && github.event_name == 'pull_request'
-        run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts
+          if find baseline-artifacts -type f -print -quit 2>/dev/null | grep -q .; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No baseline yet — expected until this workflow merges and runs on push to the default branch."
 
       - name: Restore failure history cache
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         uses: actions/cache@v4
         with:
           path: playwright/.cache
@@ -113,12 +107,16 @@ jobs:
           # Do not include github.sha — that creates a new cache entry every commit.
           key: failure-history-${{ github.repository }}
 
+      - name: Compute failure diff
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts
+
       - name: Update failure history (recurrence)
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         run: npx qa-intelligence-history
 
-      - name: Comment PR with AI summary
-        if: always() && github.event_name == 'pull_request'
+      - name: Comment PR with failure summary
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -126,4 +124,4 @@ jobs:
             --diff failure-diff.json \
             --repo ${{ github.repository }} \
             --pr ${{ github.event.pull_request.number }} \
-            --token $GITHUB_TOKEN
+            --token "$GITHUB_TOKEN"
