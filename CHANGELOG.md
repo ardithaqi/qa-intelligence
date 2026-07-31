@@ -2,6 +2,14 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.4.6
+
+### Changed
+
+- Init workflow template uses Node 24–compatible actions (`checkout`/`setup-node`/`upload-artifact` v6, `dawidd6/action-download-artifact` v21)
+- Baseline pattern: upload stable `playwright-artifacts-baseline` on default-branch push, download on PRs
+- Added concurrency, npm cache, and skip diff/comment when no baseline exists yet
+
 ## 1.4.5
 
 ### Added
