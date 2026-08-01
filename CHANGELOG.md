@@ -2,6 +2,22 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.5.1
+
+### Fixed
+
+- AI cost rollup and "Saved AI summary: ..." line printed at the very end of the terminal output, after Playwright's own list-reporter summary and HTML report note — previously `globalTeardown` logged them before tests finished reporting, so they appeared above failure stack traces instead of at the bottom
+
+### Added
+
+- `qa-intelligence/playwright/reporter` — official Playwright reporter (`AiSummaryReporter`); register it last in `playwright.config.ts` to print the rollup after all other reporters
+- `QA_INTELLIGENCE_TEARDOWN_LOGS` env var (default `false`) to restore `globalTeardown`'s inline provider/analyzing/rollup logs if needed
+
+### Changed
+
+- `globalTeardown` is quiet by default: it still writes `ai.txt`, `ai-summary.md`, and a new `ai-summary.json` (consumed by the reporter), but no longer prints the rollup itself
+- Init template's `playwright.config.ts` reporter list now includes `list` and the new `qa-intelligence/playwright/reporter` entry alongside `html`
+
 ## 1.5.0
 
 ### Changed

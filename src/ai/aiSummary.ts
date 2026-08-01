@@ -16,6 +16,9 @@ export interface AiSummaryInput {
     entries: AiSummaryEntry[];
 }
 
+export const AI_SUMMARY_MARKDOWN_FILENAME = "ai-summary.md";
+export const AI_SUMMARY_DATA_FILENAME = "ai-summary.json";
+
 export function titleFromMetaPath(metaPath: string): string {
     const normalized = metaPath.replace(/\\/g, "/");
     const parts = normalized.split("/");

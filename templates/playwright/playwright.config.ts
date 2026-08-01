@@ -14,5 +14,9 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
-  reporter: [["html", { open: "never" }]],
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }],
+    [require.resolve("qa-intelligence/playwright/reporter")],
+  ],
 });

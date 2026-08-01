@@ -128,6 +128,7 @@ Work top-down unless the user scopes a specific tier or item.
       reporter: [["qa-intelligence/reporter", { ai: true }]]
       ```
     - Same artifact + intelligence pipeline underneath
+    - ✅ (partial, 1.5.1) `qa-intelligence/playwright/reporter` (`src/playwright/reporter.ts`) exists today, but only to print the AI cost rollup + saved-summary path *after* Playwright's own summary — `globalTeardown` still owns the actual analysis. The bigger idea above (a reporter that replaces the `test` import swap entirely) is still open.
 
 ### Tier 4 — Polish & positioning
 

@@ -34,7 +34,7 @@ AI_ANALYSIS=true
 OPENAI_API_KEY=sk-...
 ```
 
-CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. Teardown also prints one combined cost rollup line at the end of the run.
+CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. The `qa-intelligence/playwright/reporter` entry in `playwright.config.ts` prints one combined cost rollup line — and the path to the saved `ai-summary.md` — after Playwright's own pass/fail summary, so it's the last thing in the terminal instead of getting buried above the failure output. Set `QA_INTELLIGENCE_TEARDOWN_LOGS=true` if you also want teardown's per-failure "Analyzing"/"Saved AI analysis" lines (off by default).
 
 ### AI providers
 
@@ -151,6 +151,7 @@ If you scaffolded CI before this fix, update your workflow or re-run `npx qa-int
 | `qa-intelligence/playwright` | `test`, `expect`, `env` |
 | `qa-intelligence/playwright/globalSetup` | Artifact run setup |
 | `qa-intelligence/playwright/globalTeardown` | AI failure analysis |
+| `qa-intelligence/playwright/reporter` | Prints the AI cost rollup last, after Playwright's own summary |
 | `qa-intelligence/playwright/basePage` | Base page object |
 | `qa-intelligence/playwright/steps` | `step()` helper |
 | `qa-intelligence/config/env` | Validated env config |

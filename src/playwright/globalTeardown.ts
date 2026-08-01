@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import {
+    AI_SUMMARY_DATA_FILENAME,
+    AI_SUMMARY_MARKDOWN_FILENAME,
     AiSummaryEntry,
     formatAiSummaryMarkdown,
     formatCostRollupLine,
@@ -11,6 +13,8 @@ import {
     FailureMeta,
     selectMetaFilesForAnalysis,
 } from "../lib/selectMetaForAnalysis";
+
+const TEARDOWN_LOGS = process.env.QA_INTELLIGENCE_TEARDOWN_LOGS === "true";
 
 function findMetaFiles(dir: string, results: string[] = []): string[] {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -51,7 +55,7 @@ export async function runAiTeardown(runDir: string): Promise<{
     }
 
     const provider = createAiProvider();
-    if (provider) {
+    if (provider && TEARDOWN_LOGS) {
         console.log(
             `Using AI provider: ${provider.name} (${provider.model})`
         );
@@ -60,7 +64,7 @@ export async function runAiTeardown(runDir: string): Promise<{
     const entries: AiSummaryEntry[] = [];
 
     for (const metaPath of toAnalyze) {
-        console.log(`Analyzing: ${metaPath}`);
+        if (TEARDOWN_LOGS) console.log(`Analyzing: ${metaPath}`);
 
         try {
             const analysis = await analyzeFailureFile(metaPath);
@@ -68,7 +72,9 @@ export async function runAiTeardown(runDir: string): Promise<{
 
             const outputFile = metaPath.replace("meta.json", "ai.txt");
             fs.writeFileSync(outputFile, analysis.content);
-            console.log(`Saved AI analysis: ${path.basename(outputFile)}`);
+            if (TEARDOWN_LOGS) {
+                console.log(`Saved AI analysis: ${path.basename(outputFile)}`);
+            }
 
             entries.push({
                 metaPath,
@@ -92,10 +98,17 @@ export async function runAiTeardown(runDir: string): Promise<{
         entries,
     };
 
-    const summaryPath = path.join(runDir, "ai-summary.md");
+    const summaryPath = path.join(runDir, AI_SUMMARY_MARKDOWN_FILENAME);
     fs.writeFileSync(summaryPath, formatAiSummaryMarkdown(summaryInput));
-    console.log(`\n${formatCostRollupLine(summaryInput)}`);
-    console.log(`Saved AI summary: ${summaryPath}`);
+    fs.writeFileSync(
+        path.join(runDir, AI_SUMMARY_DATA_FILENAME),
+        JSON.stringify(summaryInput)
+    );
+
+    if (TEARDOWN_LOGS) {
+        console.log(`\n${formatCostRollupLine(summaryInput)}`);
+        console.log(`Saved AI summary: ${summaryPath}`);
+    }
 
     return { analyzed: entries.length, summaryPath };
 }
