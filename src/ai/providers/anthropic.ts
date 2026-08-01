@@ -1,5 +1,5 @@
 import { AiConfig } from "../config";
-import { estimateCostUsd } from "../estimateCost";
+import { estimateCostUsd, logUsageAndCost } from "../estimateCost";
 import { AiAnalysisResult, AiProvider } from "../types";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
@@ -11,10 +11,6 @@ interface AnthropicResponse {
         input_tokens?: number;
         output_tokens?: number;
     };
-}
-
-function isVerbose(): boolean {
-    return process.env.AI_VERBOSE === "true";
 }
 
 export function createAnthropicProvider(config: AiConfig): AiProvider {
@@ -60,16 +56,13 @@ export function createAnthropicProvider(config: AiConfig): AiProvider {
                           (data.usage.output_tokens ?? 0),
                   }
                 : undefined;
-            const estimatedCostUsd = estimateCostUsd("anthropic", usage);
+            const estimatedCostUsd = estimateCostUsd(
+                "anthropic",
+                usage,
+                config.model
+            );
 
-            if (isVerbose() && data.usage) {
-                console.log("Token usage:", data.usage);
-                if (estimatedCostUsd !== undefined) {
-                    console.log(
-                        `Estimated cost (approx): $${estimatedCostUsd.toFixed(6)}`
-                    );
-                }
-            }
+            logUsageAndCost(data.usage, estimatedCostUsd);
 
             return { content, usage, estimatedCostUsd };
         },

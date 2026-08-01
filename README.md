@@ -34,7 +34,7 @@ AI_ANALYSIS=true
 OPENAI_API_KEY=sk-...
 ```
 
-CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. Teardown prints one cost rollup line; set `AI_VERBOSE=true` for per-call token/cost logs.
+CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. Teardown also prints one combined cost rollup line at the end of the run.
 
 ### AI providers
 
@@ -48,7 +48,6 @@ Default provider is **OpenAI** (`gpt-4o-mini`). Configure via env:
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
 | `AI_API_KEY` | Generic key fallback for any provider |
 | `AI_BASE_URL` | Required for `openai-compatible` (Azure OpenAI, Ollama, LiteLLM, etc.) |
-| `AI_VERBOSE` | `true` to log per-call token usage and estimated cost |
 
 Examples:
 

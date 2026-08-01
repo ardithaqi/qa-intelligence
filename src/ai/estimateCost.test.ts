@@ -1,15 +1,62 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { estimateCostUsd, formatUsd } from "./estimateCost";
+import {
+    estimateAnthropicCost,
+    estimateCostUsd,
+    formatUsd,
+    resolveAnthropicRates,
+} from "./estimateCost";
 
-describe("estimateCostUsd", () => {
-    it("estimates anthropic haiku-style cost from input/output tokens", () => {
-        const cost = estimateCostUsd("anthropic", {
+describe("resolveAnthropicRates", () => {
+    it("uses exact model pricing when listed", () => {
+        assert.deepEqual(
+            resolveAnthropicRates("claude-3-5-haiku-latest"),
+            { input: 0.8, output: 4 }
+        );
+        assert.deepEqual(resolveAnthropicRates("claude-opus-5"), {
+            input: 5,
+            output: 25,
+        });
+    });
+
+    it("falls back by model name substring", () => {
+        assert.deepEqual(resolveAnthropicRates("claude-haiku-4-5"), {
+            input: 0.8,
+            output: 4,
+        });
+        assert.deepEqual(resolveAnthropicRates("claude-opus-4-1"), {
+            input: 5,
+            output: 25,
+        });
+    });
+
+    it("defaults to sonnet pricing for unknown models", () => {
+        assert.deepEqual(resolveAnthropicRates("claude-unknown"), {
+            input: 3,
+            output: 15,
+        });
+    });
+});
+
+describe("estimateAnthropicCost", () => {
+    it("estimates haiku-style cost from input/output tokens", () => {
+        const cost = estimateAnthropicCost("claude-3-5-haiku-latest", {
             inputTokens: 944,
             outputTokens: 263,
         });
         assert.ok(cost !== undefined);
         // 944/1e6 * 0.8 + 263/1e6 * 4 = 0.0018072
+        assert.equal(Number(cost!.toFixed(6)), 0.001807);
+    });
+});
+
+describe("estimateCostUsd", () => {
+    it("uses anthropic model pricing when model is provided", () => {
+        const cost = estimateCostUsd(
+            "anthropic",
+            { inputTokens: 944, outputTokens: 263 },
+            "claude-3-5-haiku-latest"
+        );
         assert.equal(Number(cost!.toFixed(6)), 0.001807);
     });
 

@@ -1,11 +1,7 @@
 import OpenAI from "openai";
 import { AiConfig } from "../config";
-import { estimateCostUsd } from "../estimateCost";
+import { estimateCostUsd, logUsageAndCost } from "../estimateCost";
 import { AiAnalysisResult, AiProvider } from "../types";
-
-function isVerbose(): boolean {
-    return process.env.AI_VERBOSE === "true";
-}
 
 export function createOpenAiProvider(config: AiConfig): AiProvider {
     const client = new OpenAI({ apiKey: config.apiKey });
@@ -31,14 +27,7 @@ export function createOpenAiProvider(config: AiConfig): AiProvider {
                 : undefined;
             const estimatedCostUsd = estimateCostUsd("openai", usage);
 
-            if (isVerbose() && usage) {
-                console.log("Token usage:", response.usage);
-                if (estimatedCostUsd !== undefined) {
-                    console.log(
-                        `Estimated cost (approx): $${estimatedCostUsd.toFixed(6)}`
-                    );
-                }
-            }
+            logUsageAndCost(response.usage, estimatedCostUsd);
 
             return { content, usage, estimatedCostUsd };
         },
@@ -75,14 +64,7 @@ export function createOpenAiCompatibleProvider(config: AiConfig): AiProvider {
                 usage
             );
 
-            if (isVerbose() && usage) {
-                console.log("Token usage:", response.usage);
-                if (estimatedCostUsd !== undefined) {
-                    console.log(
-                        `Estimated cost (approx): $${estimatedCostUsd.toFixed(6)}`
-                    );
-                }
-            }
+            logUsageAndCost(response.usage, estimatedCostUsd);
 
             return { content, usage, estimatedCostUsd };
         },

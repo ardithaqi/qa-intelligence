@@ -2,6 +2,14 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.5.0
+
+### Changed
+
+- Anthropic provider always logs token usage and estimated cost after each call (no `AI_VERBOSE` gate)
+- Per-model Anthropic pricing with substring fallbacks (`opus`, `haiku`, default sonnet) in shared `estimateCost.ts`
+- OpenAI providers use the same unconditional usage/cost logging helper
+
 ## 1.4.6
 
 ### Changed
@@ -16,7 +24,6 @@ All notable changes to `qa-intelligence` are documented here.
 
 - End-of-run AI cost rollup in teardown (one line instead of per-failure noise)
 - Combined `ai-summary.md` under the run artifact dir with all `ai.txt` analyses
-- `AI_VERBOSE=true` restores per-call token/cost logs
 
 ## 1.4.4
 
