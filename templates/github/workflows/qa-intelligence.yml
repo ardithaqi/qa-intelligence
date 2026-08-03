@@ -19,6 +19,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      HAS_AI_KEY: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
     defaults:
       run:
         working-directory: playwright
@@ -41,7 +43,7 @@ jobs:
       - name: Run Playwright tests
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AI_ANALYSIS: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
+          AI_ANALYSIS: ${{ env.HAS_AI_KEY }}
           BASE_URL: https://your-app.example.com
           HEADLESS: true
           PW_WORKERS: 2
@@ -97,6 +99,7 @@ jobs:
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
             echo "No baseline yet — expected until this workflow merges and runs on push to the default branch."
+          fi
 
       - name: Restore failure history cache
         if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
