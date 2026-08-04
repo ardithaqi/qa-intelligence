@@ -2,6 +2,16 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 1.5.2
+
+### Fixed
+
+- Init workflow template: restore missing `fi` in the "Check baseline artifact" shell step so the "no baseline yet" branch does not fail with a syntax error
+
+### Changed
+
+- Init workflow template: expose a non-secret job-level `HAS_AI_KEY` flag instead of relying on secret presence only at the test step; API key secrets remain step-scoped
+
 ## 1.5.1
 
 ### Fixed
