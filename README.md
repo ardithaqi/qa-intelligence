@@ -168,6 +168,15 @@ For adding to an existing repo with a `playwright/` subfolder, see the [framewor
 
 ---
 
+## Recipes
+
+The scaffolded workflow already reuses a merged PR's results on push instead of re-running the suite,
+and skips the AI-analysis pipeline entirely when no API key is configured. For patterns that are too
+project-specific to default to — like splitting a monorepo's suite by which app changed — see
+[`docs/recipes.md`](docs/recipes.md).
+
+---
+
 ## License
 
 MIT
