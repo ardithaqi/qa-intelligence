@@ -81,6 +81,17 @@ export function formatDiffComment(diff: DiffResult): string {
     return body;
 }
 
+export function formatClearDiffComment(): string {
+    const commit = process.env.GITHUB_SHA?.slice(0, 7);
+
+    let body = "## AI Failure Diff Summary\n\n";
+    if (commit) body += `Commit: ${commit}\n`;
+    body +=
+        "\n✅ **All tests passed** — no new, ongoing, or flaky failures to report.\n";
+
+    return body;
+}
+
 export function hasFailureChanges(diff: DiffResult): boolean {
     return (
         (diff.newFailures?.length ?? 0) > 0 ||

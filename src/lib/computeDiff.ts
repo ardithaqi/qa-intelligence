@@ -19,6 +19,8 @@ export interface Failure {
 interface MetaJson {
     stack?: string;
     is_flaky_suspected?: boolean;
+    file?: string;
+    line?: number;
 }
 
 function extractTrailingJson(content: string): Partial<Failure> | null {
@@ -58,12 +60,23 @@ function resolveFailure(aiTxtPath: string): Failure | null {
 
     const meta = readMetaJson(aiTxtPath);
     const fromStack = parseLocationFromStack(meta?.stack);
+    const fromMeta =
+        typeof meta?.file === "string"
+            ? {
+                  file: normalizeTestPath(meta.file),
+                  line:
+                      typeof meta.line === "number" && Number.isFinite(meta.line)
+                          ? meta.line
+                          : 0,
+              }
+            : null;
 
     const file = normalizeTestPath(
-        fromStack?.file ?? (typeof ai.file === "string" ? ai.file : "")
+        fromStack?.file ?? fromMeta?.file ?? (typeof ai.file === "string" ? ai.file : "")
     );
     const line =
         fromStack?.line ??
+        fromMeta?.line ??
         (typeof ai.line === "number" ? ai.line : Number(ai.line) || 0);
 
     if (!file) return null;
