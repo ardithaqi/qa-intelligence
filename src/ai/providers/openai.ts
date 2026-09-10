@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { AiConfig } from "../config";
-import { AiAnalysisResult, AiProvider } from "../types";
 import { estimateCostUsd, logUsageAndCost } from "../estimateCost";
+import { AiAnalysisResult, AiProvider } from "../types";
 
 export function createOpenAiProvider(config: AiConfig): AiProvider {
     const client = new OpenAI({ apiKey: config.apiKey });
@@ -25,8 +25,8 @@ export function createOpenAiProvider(config: AiConfig): AiProvider {
                       totalTokens: response.usage.total_tokens,
                   }
                 : undefined;
-
             const estimatedCostUsd = estimateCostUsd("openai", usage);
+
             logUsageAndCost(response.usage, estimatedCostUsd);
 
             return { content, usage, estimatedCostUsd };
@@ -59,8 +59,11 @@ export function createOpenAiCompatibleProvider(config: AiConfig): AiProvider {
                       totalTokens: response.usage.total_tokens,
                   }
                 : undefined;
+            const estimatedCostUsd = estimateCostUsd(
+                "openai-compatible",
+                usage
+            );
 
-            const estimatedCostUsd = estimateCostUsd("openai-compatible", usage);
             logUsageAndCost(response.usage, estimatedCostUsd);
 
             return { content, usage, estimatedCostUsd };

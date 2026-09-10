@@ -108,8 +108,9 @@ Work top-down unless the user scopes a specific tier or item.
    - Export core from package entry, e.g. `computeDiff`, `formatDiffComment`
    - Enables GitLab, CircleCI, Jenkins, Slack bots without forking
 
-8. **Persistent history in CI**
-   - Document or automate `actions/cache` for `.cache/failure-history.json`
+8. **Persistent history in CI** ✅
+   - Init template uses repo-scoped `actions/cache` key for `.cache/failure-history.json`
+   - README documents the pattern and migration from SHA-based keys
    - Optional S3/GCS persistence for recurrence tracking across runs
 
 ### Tier 3 — Reach & ecosystem
@@ -128,6 +129,7 @@ Work top-down unless the user scopes a specific tier or item.
       reporter: [["qa-intelligence/reporter", { ai: true }]]
       ```
     - Same artifact + intelligence pipeline underneath
+    - ✅ (partial, 1.5.1) `qa-intelligence/playwright/reporter` (`src/playwright/reporter.ts`) exists today, but only to print the AI cost rollup + saved-summary path *after* Playwright's own summary — `globalTeardown` still owns the actual analysis. The bigger idea above (a reporter that replaces the `test` import swap entirely) is still open.
 
 ### Tier 4 — Polish & positioning
 

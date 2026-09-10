@@ -5,6 +5,17 @@ import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { runInit } from "../cli/init";
 
+const PLAYWRIGHT_TEMPLATE_FILES = [
+    "playwright/.env.example",
+    "playwright/gitignore",
+    "playwright/tsconfig.json",
+    "playwright/playwright.config.ts",
+    "playwright/package.json",
+    "playwright/tests/example.spec.ts",
+];
+
+const CI_TEMPLATE_FILES = ["github/workflows/qa-intelligence.yml"];
+
 describe("runInit", () => {
     let tempRoot = "";
 
@@ -12,6 +23,17 @@ describe("runInit", () => {
         if (tempRoot) {
             fs.rmSync(tempRoot, { recursive: true, force: true });
             tempRoot = "";
+        }
+    });
+
+    it("all scaffold templates exist (npm must ship them)", () => {
+        const templatesRoot = path.join(__dirname, "..", "..", "templates");
+
+        for (const file of [...PLAYWRIGHT_TEMPLATE_FILES, ...CI_TEMPLATE_FILES]) {
+            assert.ok(
+                fs.existsSync(path.join(templatesRoot, file)),
+                `missing template: ${file}`
+            );
         }
     });
 

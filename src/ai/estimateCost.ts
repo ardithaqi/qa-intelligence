@@ -42,10 +42,12 @@ export function estimateAnthropicCost(
     const rates = resolveAnthropicRates(model);
     const input = usage.inputTokens ?? 0;
     const output = usage.outputTokens ?? 0;
+
     if (input === 0 && output === 0) return undefined;
 
     return (
-        (input / 1_000_000) * rates.input + (output / 1_000_000) * rates.output
+        (input / 1_000_000) * rates.input +
+        (output / 1_000_000) * rates.output
     );
 }
 
@@ -90,6 +92,8 @@ export function logUsageAndCost(
         console.log("Token usage:", usage);
     }
     if (estimatedCostUsd !== undefined) {
-        console.log(`Estimated cost (approx): $${estimatedCostUsd.toFixed(6)}`);
+        console.log(
+            `Estimated cost (approx): $${estimatedCostUsd.toFixed(6)}`
+        );
     }
 }

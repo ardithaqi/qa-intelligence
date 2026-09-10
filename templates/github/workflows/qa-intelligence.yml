@@ -23,11 +23,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      # Only run the AI-analysis pipeline (diff/history/PR comment) when a key
-      # is actually configured — otherwise every PR gets a comment saying
-      # "everything is new," which isn't useful and isn't what a fresh clone
-      # of this template expects out of the box.
-      AI_ANALYSIS_ENABLED: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
+      HAS_AI_KEY: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
     defaults:
       run:
         working-directory: playwright
@@ -81,7 +77,7 @@ jobs:
       - name: Try to reuse the source PR's results
         if: github.event_name == 'push' && steps.source-pr.outputs.run_id != ''
         continue-on-error: true
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v21
         with:
           run_id: ${{ steps.source-pr.outputs.run_id }}
           name: ai-failure-artifacts
@@ -103,27 +99,18 @@ jobs:
         if: github.event_name == 'pull_request' || steps.reused.outputs.reused != 'true'
         run: npx playwright install --with-deps chromium
 
-      - name: Clean artifacts
-        if: always()
-        run: rm -rf artifacts
-
       - name: Run Playwright tests
         if: github.event_name == 'pull_request' || steps.reused.outputs.reused != 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AI_ANALYSIS: ${{ env.AI_ANALYSIS_ENABLED }}
+          AI_ANALYSIS: ${{ env.HAS_AI_KEY }}
           BASE_URL: https://your-app.example.com
           HEADLESS: true
           PW_WORKERS: 2
           PW_RETRIES: 1
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
-        run: |
-          set +e
-          npx playwright test
-          EXIT=$?
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then exit 0; fi
-          exit $EXIT
+        run: npx playwright test
 
       - name: Record a baseline even when everything passes
         if: always() && github.event_name == 'pull_request'
@@ -147,77 +134,80 @@ jobs:
 
       - name: Upload Playwright HTML report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_id }}
           path: playwright/playwright-report/
+          retention-days: 14
           if-no-files-found: ignore
 
-      - name: Upload AI failure artifacts
+      - name: Upload failure artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: ai-failure-artifacts
+          name: playwright-artifacts-${{ github.run_id }}
           path: playwright/artifacts/
+          retention-days: 14
           if-no-files-found: ignore
 
-      - name: Parse AI failure reports
-        if: always()
-        run: |
-          echo "Parsing AI failure reports..."
-          if [ -d "artifacts" ]; then
-            find artifacts -name "ai.txt" | while read file; do
-              echo "-----"
-              echo "File: $file"
-              json=$(awk '/^{/{flag=1} flag' "$file")
-              echo "$json" | jq .
-            done
-          else
-            echo "No artifacts directory found."
-          fi
+      - name: Upload baseline artifacts (default branch)
+        if: always() && github.event_name == 'push'
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-artifacts-baseline
+          path: playwright/artifacts/
+          retention-days: 30
+          if-no-files-found: ignore
 
-      - name: Download baseline artifacts from main
-        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
-        uses: dawidd6/action-download-artifact@v6
+      - name: Download baseline artifacts from default branch
+        id: download-baseline
+        if: always() && github.event_name == 'pull_request'
+        uses: dawidd6/action-download-artifact@v21
         with:
           workflow: qa-intelligence.yml
           branch: ${{ github.base_ref }}
-          name: ai-failure-artifacts
+          name: playwright-artifacts-baseline
           path: baseline-artifacts
-          if_no_artifact_found: warn
+          if_no_artifact_found: ignore
 
-      - name: Debug baseline contents
-        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
+      - name: Check baseline artifact
+        id: baseline
+        if: always() && github.event_name == 'pull_request'
+        working-directory: .
         run: |
-          echo "Baseline:"
-          ls -la ../baseline-artifacts || true
-          echo "Current:"
-          ls -la artifacts || true
+          if find baseline-artifacts -type f -print -quit 2>/dev/null | grep -q .; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No baseline yet — expected until this workflow merges and runs on push to the default branch."
+          fi
 
       - name: Compute failure diff
-        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
+        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
         run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts
 
       - name: Restore failure history cache
-        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
+        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
         uses: actions/cache@v4
         with:
           path: playwright/.cache
-          # A static/sha key never changes across re-runs of the same commit,
-          # and actions/cache skips saving once the restored key exactly
-          # matches — so history would populate once and then silently stop
-          # accumulating. A per-run key + prefix restore-keys keeps every
-          # run's save distinct while still restoring the latest match.
+          # A key that never changes (e.g. just the repo name) restores fine
+          # across commits, but actions/cache also skips SAVING once a run
+          # gets an exact hit on the primary key — so a permanently-stable
+          # key still stops accumulating after its very first save. A
+          # per-run key + prefix restore-keys avoids both failure modes:
+          # every run saves under a fresh key (so saving never gets
+          # skipped), while the prefix still restores the latest match.
           key: failure-history-${{ github.repository }}-${{ github.run_id }}
           restore-keys: |
             failure-history-${{ github.repository }}-
 
       - name: Update failure history (recurrence)
-        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
+        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
         run: npx qa-intelligence-history
 
       - name: Comment PR with AI summary
-        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
+        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -225,4 +215,4 @@ jobs:
             --diff failure-diff.json \
             --repo ${{ github.repository }} \
             --pr ${{ github.event.pull_request.number }} \
-            --token $GITHUB_TOKEN
+            --token "$GITHUB_TOKEN"

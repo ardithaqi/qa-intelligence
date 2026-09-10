@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { formatDiffComment, hasFailureChanges } from "./format";
+import {
+    formatClearDiffComment,
+    formatDiffComment,
+    hasFailureChanges,
+} from "./format";
 import { DiffResult } from "./types";
 
 const baseFailure = {
@@ -44,6 +48,23 @@ describe("hasFailureChanges", () => {
             }),
             true
         );
+    });
+});
+
+describe("formatClearDiffComment", () => {
+    afterEach(() => {
+        delete process.env.GITHUB_SHA;
+    });
+
+    it("renders an all-clear summary", () => {
+        process.env.GITHUB_SHA = "c76b6b2deadbeef";
+
+        const body = formatClearDiffComment();
+
+        assert.match(body, /## AI Failure Diff Summary/);
+        assert.match(body, /Commit: c76b6b2/);
+        assert.match(body, /All tests passed/);
+        assert.doesNotMatch(body, /### New Issues/);
     });
 });
 

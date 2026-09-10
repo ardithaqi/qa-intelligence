@@ -142,6 +142,54 @@ describe("computeDiff", () => {
         });
     });
 
+    it("prefers metadata file over hallucinated AI file on flaky pass attempts", () => {
+        withTempDirs((_baseline, current) => {
+            const dir = path.join(
+                current,
+                "flaky.spec.ts",
+                "flaky_demo",
+                "attempt-1"
+            );
+            fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(
+                path.join(dir, "meta.json"),
+                JSON.stringify(
+                    {
+                        file: "/repo/tests/examples/saucedemo/flaky.spec.ts",
+                        line: 8,
+                        is_flaky_suspected: true,
+                    },
+                    null,
+                    2
+                )
+            );
+            fs.writeFileSync(
+                path.join(dir, "ai.txt"),
+                [
+                    "hallucinated analysis",
+                    JSON.stringify({
+                        file: "tests/example.test.js",
+                        line: 10,
+                        failure_type: "assertion_mismatch",
+                        severity: "medium",
+                        confidence: 95,
+                        is_flaky_suspected: true,
+                    }),
+                ].join("\n")
+            );
+
+            const diff = computeDiff(path.join(current, "empty"), current);
+
+            assert.equal(diff.newFailures.length, 1);
+            assert.equal(
+                diff.newFailures[0].file,
+                "tests/examples/saucedemo/flaky.spec.ts"
+            );
+            assert.equal(diff.newFailures[0].line, 8);
+            assert.equal(diff.newFailures[0].is_flaky_suspected, true);
+        });
+    });
+
     it("returns empty buckets when artifact dirs are missing", () => {
         withTempDirs((baseline, current) => {
             const diff = computeDiff(baseline, current);

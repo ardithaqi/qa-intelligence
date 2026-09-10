@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import fs from "fs";
-import { formatClearDiffComment, formatDiffComment, hasFailureChanges } from "../lib/format";
+import {
+    formatClearDiffComment,
+    formatDiffComment,
+    hasFailureChanges,
+} from "../lib/format";
 import { DiffResult } from "../lib/types";
 import { Octokit } from "@octokit/rest";
 
@@ -38,7 +42,7 @@ async function upsertComment(
     owner: string,
     repo: string,
     issue_number: number,
-    existing: Awaited<ReturnType<typeof findExistingComment>>,
+    existing: { id: number } | undefined,
     body: string
 ) {
     if (existing) {
@@ -81,13 +85,19 @@ async function main() {
     const diff = JSON.parse(raw) as DiffResult;
 
     const octokit = new Octokit({ auth: token });
-    const existing = await findExistingComment(octokit, owner, repo, issue_number);
+    const existing = await findExistingComment(
+        octokit,
+        owner,
+        repo,
+        issue_number
+    );
 
     if (!hasFailureChanges(diff)) {
         if (!existing) {
             console.log("No failure changes. Skipping comment.");
             return;
         }
+
         await upsertComment(
             octokit,
             owner,

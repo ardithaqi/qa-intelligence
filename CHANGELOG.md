@@ -4,33 +4,103 @@ All notable changes to `qa-intelligence` are documented here.
 
 ## 1.5.3
 
-> **Note:** this repo's git history was last updated through 1.4.0, but npm already had 1.4.1–1.5.2
-> published with changes never committed back here — most notably an AI-cost-tracking subsystem
-> (`ai/estimateCost.ts`, `ai/aiSummary.ts`, `playwright/reporter.ts`, richer `AiAnalysisResult`/
-> `failureAnalyzer` return values, `meta.json` `file`/`line` capture used as a diff fallback, a
-> "clear" PR comment when a previously-red PR goes green, and the `playwright/gitignore` template
-> rename that worked around npm silently dropping any packed file literally named `.gitignore`).
-> Reconstructed from the published 1.5.2 tarball's compiled output (verified via a byte-for-byte
-> `dist/` diff — only intentional differences remain: this fix below, and the CI-template changes
-> further down) and merged back into this checkout so 1.5.3 is a strict superset of 1.5.2, not a
-> regression. Versioned 1.5.3 to land after published history rather than collide with it.
-
 ### Fixed
 
 - AI failure JSON parsing now tolerates a trailing ` ```json ` markdown fence (or any trailing text)
   around SECTION 2 — some providers (notably Claude/Anthropic) wrap it despite the prompt saying not
   to, which previously broke `JSON.parse` and silently dropped the failure from the diff
 
+### Added (scaffolded CI template)
+
+- `concurrency` guard — cancels superseded PR runs only, never a push/merge run mid-flight, so a
+  test's cleanup (e.g. restoring a shared fixture in a `finally`) can't get killed mid-run
+- Push (merge) runs now reuse the merged PR's already-completed results instead of re-running the
+  full Playwright suite, falling back to a fresh run when no reusable result is found
+- New `docs/recipes.md` for patterns not baked into the default template (e.g. monorepo path filtering)
+
 ### Changed (scaffolded CI template)
 
-- `concurrency` guard added — cancels superseded PR runs only, never a push/merge run mid-flight
-- Failure-history cache key now uses `github.run_id` instead of `github.sha`, so recurrence tracking
-  doesn't stop accumulating after its first save on a given commit
-- AI-analysis steps (diff/history/PR comment) now auto-skip when no `OPENAI_API_KEY` is configured,
-  instead of posting an "everything is new" comment with no real analysis behind it
-- Push (merge) runs now reuse the merged PR's already-completed results instead of re-running the full
-  Playwright suite, falling back to a fresh run when no reusable result is found
-- New `docs/recipes.md` for patterns not baked into the default template (e.g. monorepo path filtering)
+- Failure-history cache key uses a per-run key (`github.run_id`) with a repo-scoped `restore-keys`
+  prefix, instead of either a per-commit SHA (never restores prior history) or a single permanently
+  stable key (restores fine, but `actions/cache` skips saving once a run gets an exact hit on the
+  primary key, so a stable key alone still stops accumulating history after its first save)
+
+## 1.5.2
+
+### Fixed
+
+- Init workflow template: restore missing `fi` in the "Check baseline artifact" shell step so the "no baseline yet" branch does not fail with a syntax error
+
+### Changed
+
+- Init workflow template: expose a non-secret job-level `HAS_AI_KEY` flag instead of relying on secret presence only at the test step; API key secrets remain step-scoped
+
+## 1.5.1
+
+### Fixed
+
+- AI cost rollup and "Saved AI summary: ..." line printed at the very end of the terminal output, after Playwright's own list-reporter summary and HTML report note — previously `globalTeardown` logged them before tests finished reporting, so they appeared above failure stack traces instead of at the bottom
+
+### Added
+
+- `qa-intelligence/playwright/reporter` — official Playwright reporter (`AiSummaryReporter`); register it last in `playwright.config.ts` to print the rollup after all other reporters
+- `QA_INTELLIGENCE_TEARDOWN_LOGS` env var (default `false`) to restore `globalTeardown`'s inline provider/analyzing/rollup logs if needed
+
+### Changed
+
+- `globalTeardown` is quiet by default: it still writes `ai.txt`, `ai-summary.md`, and a new `ai-summary.json` (consumed by the reporter), but no longer prints the rollup itself
+- Init template's `playwright.config.ts` reporter list now includes `list` and the new `qa-intelligence/playwright/reporter` entry alongside `html`
+
+## 1.5.0
+
+### Changed
+
+- Anthropic provider always logs token usage and estimated cost after each call (no `AI_VERBOSE` gate)
+- Per-model Anthropic pricing with substring fallbacks (`opus`, `haiku`, default sonnet) in shared `estimateCost.ts`
+- OpenAI providers use the same unconditional usage/cost logging helper
+
+## 1.4.6
+
+### Changed
+
+- Init workflow template uses Node 24–compatible actions (`checkout`/`setup-node`/`upload-artifact` v6, `dawidd6/action-download-artifact` v21)
+- Baseline pattern: upload stable `playwright-artifacts-baseline` on default-branch push, download on PRs
+- Added concurrency, npm cache, and skip diff/comment when no baseline exists yet
+
+## 1.4.5
+
+### Added
+
+- End-of-run AI cost rollup in teardown (one line instead of per-failure noise)
+- Combined `ai-summary.md` under the run artifact dir with all `ai.txt` analyses
+
+## 1.4.4
+
+### Fixed
+
+- `qa-intelligence init` no longer fails on install from npm: scaffold `playwright/.gitignore` is shipped as `templates/playwright/gitignore` (npm always omits `.gitignore` files from packages)
+
+## 1.4.3
+
+### Fixed
+
+- Flaky pass attempts now record test `file`/`line` in `meta.json` and reuse the failed attempt's error for AI analysis, so PR comments show the real spec path instead of a guessed one
+
+## 1.4.2
+
+### Fixed
+
+- PR comment now updates to an all-clear summary when a previously failing PR run passes, instead of leaving a stale **New Issues** comment
+
+## 1.4.1
+
+### Fixed
+
+- Init workflow cache key for failure history: repo-scoped (`failure-history-${{ github.repository }}`) instead of per-commit SHA, so recurrence and Flaky Watchlist persist across PR runs
+
+### Changed
+
+- README: document failure history caching in CI and how to fix existing workflows
 
 ## 1.4.0
 

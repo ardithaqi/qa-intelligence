@@ -52,6 +52,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
     let errorMessage = testInfo.error?.message;
     let stack = testInfo.error?.stack;
+
     if (isFlaky) {
       const prevMetaPath = path.join(
         runDir,

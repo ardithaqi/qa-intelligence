@@ -1,6 +1,6 @@
 import { AiConfig } from "../config";
-import { AiAnalysisResult, AiProvider } from "../types";
 import { estimateCostUsd, logUsageAndCost } from "../estimateCost";
+import { AiAnalysisResult, AiProvider } from "../types";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -56,12 +56,12 @@ export function createAnthropicProvider(config: AiConfig): AiProvider {
                           (data.usage.output_tokens ?? 0),
                   }
                 : undefined;
-
             const estimatedCostUsd = estimateCostUsd(
                 "anthropic",
                 usage,
                 config.model
             );
+
             logUsageAndCost(data.usage, estimatedCostUsd);
 
             return { content, usage, estimatedCostUsd };

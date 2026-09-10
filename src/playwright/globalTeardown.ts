@@ -1,6 +1,13 @@
 import fs from "fs";
 import path from "path";
-import { AiSummaryEntry, AiSummaryInput, formatAiSummaryMarkdown, formatCostRollupLine, AI_SUMMARY_DATA_FILENAME, AI_SUMMARY_MARKDOWN_FILENAME } from "../ai/aiSummary";
+import {
+    AI_SUMMARY_DATA_FILENAME,
+    AI_SUMMARY_MARKDOWN_FILENAME,
+    AiSummaryEntry,
+    AiSummaryInput,
+    formatAiSummaryMarkdown,
+    formatCostRollupLine,
+} from "../ai/aiSummary";
 import { analyzeFailureFile } from "../ai/failureAnalyzer";
 import { createAiProvider } from "../ai/getProvider";
 import {
@@ -34,9 +41,10 @@ function readMeta(metaPath: string): FailureMeta | null {
     }
 }
 
-export async function runAiTeardown(
-    runDir: string
-): Promise<{ analyzed: number; summaryPath: string | null }> {
+export async function runAiTeardown(runDir: string): Promise<{
+    analyzed: number;
+    summaryPath: string | null;
+}> {
     const metaFiles = findMetaFiles(runDir);
     if (metaFiles.length === 0) {
         return { analyzed: 0, summaryPath: null };
@@ -49,7 +57,9 @@ export async function runAiTeardown(
 
     const provider = createAiProvider();
     if (provider && TEARDOWN_LOGS) {
-        console.log(`Using AI provider: ${provider.name} (${provider.model})`);
+        console.log(
+            `Using AI provider: ${provider.name} (${provider.model})`
+        );
     }
 
     const entries: AiSummaryEntry[] = [];

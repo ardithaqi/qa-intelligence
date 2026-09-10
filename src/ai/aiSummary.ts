@@ -62,16 +62,17 @@ export function formatCostRollupLine(input: AiSummaryInput): string {
 export function formatAiSummaryMarkdown(input: AiSummaryInput): string {
     const { provider, model, entries } = input;
     const total = totalEstimatedCostUsd(entries);
-
-    const lines = [
+    const lines: string[] = [
         "# AI failure analysis summary",
         "",
         `- Provider: ${provider ?? "unknown"}${model ? ` (${model})` : ""}`,
         `- Failures analyzed: ${entries.length}`,
     ];
+
     if (total !== undefined) {
         lines.push(`- Estimated cost (approx): ${formatUsd(total)}`);
     }
+
     lines.push("");
 
     for (const entry of entries) {
