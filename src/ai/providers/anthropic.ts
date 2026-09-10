@@ -1,5 +1,6 @@
 import { AiConfig } from "../config";
 import { AiAnalysisResult, AiProvider } from "../types";
+import { estimateCostUsd, logUsageAndCost } from "../estimateCost";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -46,23 +47,24 @@ export function createAnthropicProvider(config: AiConfig): AiProvider {
 
             if (!content) return null;
 
-            const usage = data.usage;
-            if (usage) {
-                console.log("Token usage:", usage);
-            }
+            const usage = data.usage
+                ? {
+                      inputTokens: data.usage.input_tokens,
+                      outputTokens: data.usage.output_tokens,
+                      totalTokens:
+                          (data.usage.input_tokens ?? 0) +
+                          (data.usage.output_tokens ?? 0),
+                  }
+                : undefined;
 
-            return {
-                content,
-                usage: usage
-                    ? {
-                          inputTokens: usage.input_tokens,
-                          outputTokens: usage.output_tokens,
-                          totalTokens:
-                              (usage.input_tokens ?? 0) +
-                              (usage.output_tokens ?? 0),
-                      }
-                    : undefined,
-            };
+            const estimatedCostUsd = estimateCostUsd(
+                "anthropic",
+                usage,
+                config.model
+            );
+            logUsageAndCost(data.usage, estimatedCostUsd);
+
+            return { content, usage, estimatedCostUsd };
         },
     };
 }

@@ -1,9 +1,7 @@
 import OpenAI from "openai";
 import { AiConfig } from "../config";
 import { AiAnalysisResult, AiProvider } from "../types";
-
-// Rough estimate for gpt-4o-mini (adjust if pricing changes)
-const OPENAI_MINI_COST_PER_1K_TOKENS = 0.00015;
+import { estimateCostUsd, logUsageAndCost } from "../estimateCost";
 
 export function createOpenAiProvider(config: AiConfig): AiProvider {
     const client = new OpenAI({ apiKey: config.apiKey });
@@ -20,27 +18,18 @@ export function createOpenAiProvider(config: AiConfig): AiProvider {
             const content = response.choices[0]?.message?.content;
             if (!content) return null;
 
-            const usage = response.usage;
-            if (usage) {
-                console.log("Token usage:", usage);
-                const estimatedCost =
-                    ((usage.total_tokens ?? 0) / 1000) *
-                    OPENAI_MINI_COST_PER_1K_TOKENS;
-                console.log(
-                    `Estimated cost (approx): $${estimatedCost.toFixed(6)}`
-                );
-            }
+            const usage = response.usage
+                ? {
+                      inputTokens: response.usage.prompt_tokens,
+                      outputTokens: response.usage.completion_tokens,
+                      totalTokens: response.usage.total_tokens,
+                  }
+                : undefined;
 
-            return {
-                content,
-                usage: usage
-                    ? {
-                          inputTokens: usage.prompt_tokens,
-                          outputTokens: usage.completion_tokens,
-                          totalTokens: usage.total_tokens,
-                      }
-                    : undefined,
-            };
+            const estimatedCostUsd = estimateCostUsd("openai", usage);
+            logUsageAndCost(response.usage, estimatedCostUsd);
+
+            return { content, usage, estimatedCostUsd };
         },
     };
 }
@@ -63,21 +52,18 @@ export function createOpenAiCompatibleProvider(config: AiConfig): AiProvider {
             const content = response.choices[0]?.message?.content;
             if (!content) return null;
 
-            const usage = response.usage;
-            if (usage) {
-                console.log("Token usage:", usage);
-            }
+            const usage = response.usage
+                ? {
+                      inputTokens: response.usage.prompt_tokens,
+                      outputTokens: response.usage.completion_tokens,
+                      totalTokens: response.usage.total_tokens,
+                  }
+                : undefined;
 
-            return {
-                content,
-                usage: usage
-                    ? {
-                          inputTokens: usage.prompt_tokens,
-                          outputTokens: usage.completion_tokens,
-                          totalTokens: usage.total_tokens,
-                      }
-                    : undefined,
-            };
+            const estimatedCostUsd = estimateCostUsd("openai-compatible", usage);
+            logUsageAndCost(response.usage, estimatedCostUsd);
+
+            return { content, usage, estimatedCostUsd };
         },
     };
 }

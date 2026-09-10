@@ -42,6 +42,10 @@
             "types": "./dist/playwright/globalTeardown.d.ts",
             "default": "./dist/playwright/globalTeardown.js"
         },
+        "./playwright/reporter": {
+            "types": "./dist/playwright/reporter.d.ts",
+            "default": "./dist/playwright/reporter.js"
+        },
         "./playwright/basePage": {
             "types": "./dist/playwright/basePage.d.ts",
             "default": "./dist/playwright/basePage.js"
