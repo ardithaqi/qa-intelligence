@@ -20,6 +20,7 @@ Core capabilities:
 |------|----------|
 | Playwright hooks | `src/playwright/` |
 | AI analysis | `src/ai/failureAnalyzer.ts`, `src/ai/getProvider.ts`, `src/ai/providers/` |
+| AI cost tracking | `src/ai/estimateCost.ts` (per-call USD estimate), `src/ai/aiSummary.ts` (run rollup), `src/playwright/reporter.ts` (prints rollup via `qa-intelligence/playwright/reporter`) — wired together in `src/playwright/globalTeardown.ts`'s `runAiTeardown` |
 | Diff engine | `src/lib/computeDiff.ts`, `src/lib/failureIdentity.ts` |
 | PR comment formatting | `src/lib/format.ts` |
 | Programmatic API | `src/index.ts` — `computeDiff`, `formatDiffComment`, history helpers |
