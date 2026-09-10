@@ -26,8 +26,29 @@ function walkForAiTxt(dir: string, results: string[] = []): string[] {
 }
 
 /**
+ * Extracts the first balanced {...} object from text, ignoring anything
+ * before or after it. Needed because some AI providers (notably Claude)
+ * wrap the JSON section in a ```json fence despite being told not to —
+ * a naive "first { to end of string" parse breaks on the trailing ```.
+ */
+function extractJsonObject(text: string): string | null {
+    const start = text.indexOf("{");
+    if (start === -1) return null;
+
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+        if (text[i] === "{") depth++;
+        else if (text[i] === "}") {
+            depth--;
+            if (depth === 0) return text.slice(start, i + 1);
+        }
+    }
+    return null;
+}
+
+/**
  * ai.txt contains human section + raw JSON.
- * We extract JSON by finding the first "{" and parsing the rest.
+ * We extract JSON by finding the first balanced "{...}" object.
  */
 function parseAiTxt(filePath: string): AiFailure | null {
     if (filePath.endsWith("failure-meta.json")) {
@@ -56,10 +77,8 @@ function parseAiTxt(filePath: string): AiFailure | null {
     }
 
     const content = fs.readFileSync(filePath, "utf8");
-    const jsonStart = content.indexOf("{");
-    if (jsonStart === -1) return null;
-
-    const jsonRaw = content.substring(jsonStart).trim();
+    const jsonRaw = extractJsonObject(content);
+    if (jsonRaw === null) return null;
 
     try {
         const parsed = JSON.parse(jsonRaw);
