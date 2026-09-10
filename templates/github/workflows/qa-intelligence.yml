@@ -12,24 +12,95 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: qa-intelligence-${{ github.workflow }}-${{ github.ref }}
+  # Only cancel superseded PR runs. Never cancel a push/merge run mid-flight —
+  # if a test's cleanup (e.g. restoring a shared fixture in a `finally`) gets
+  # killed, it can leave shared test data corrupted for every run after it.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Only run the AI-analysis pipeline (diff/history/PR comment) when a key
+      # is actually configured — otherwise every PR gets a comment saying
+      # "everything is new," which isn't useful and isn't what a fresh clone
+      # of this template expects out of the box.
+      AI_ANALYSIS_ENABLED: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
     defaults:
       run:
         working-directory: playwright
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
+          cache-dependency-path: playwright/package-lock.json
 
       - name: Install dependencies
         run: npm install
 
+      # --- Merge-time reuse: avoid re-running the full suite on every merge ---
+      # On push (merge to main/master), the PR that just merged already ran
+      # this same suite. Reuse its results as this run's baseline candidate
+      # instead of paying for a second full Playwright run.
+
+      - name: Find source PR for this merge
+        id: source-pr
+        if: github.event_name == 'push'
+        continue-on-error: true
+        working-directory: .
+        run: |
+          PR_HEAD_SHA=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            | jq -r '.[0].head.sha // empty')
+
+          if [ -z "$PR_HEAD_SHA" ]; then
+            echo "No PR found for this merge commit — will run fresh instead."
+            exit 0
+          fi
+
+          RUN_ID=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/qa-intelligence.yml/runs?head_sha=$PR_HEAD_SHA&event=pull_request&status=completed&per_page=1" \
+            | jq -r '.workflow_runs[0].id // empty')
+
+          if [ -z "$RUN_ID" ]; then
+            echo "PR found but it has no completed run — will run fresh instead."
+            exit 0
+          fi
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "Found source PR's run: $RUN_ID"
+
+      - name: Try to reuse the source PR's results
+        if: github.event_name == 'push' && steps.source-pr.outputs.run_id != ''
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          run_id: ${{ steps.source-pr.outputs.run_id }}
+          name: ai-failure-artifacts
+          path: reused-artifacts
+          if_no_artifact_found: ignore
+
+      - name: Check what got reused
+        id: reused
+        if: always() && github.event_name == 'push'
+        working-directory: .
+        run: |
+          if find reused-artifacts -type f -print -quit 2>/dev/null | grep -q .; then
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Playwright browsers
+        if: github.event_name == 'pull_request' || steps.reused.outputs.reused != 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Clean artifacts
@@ -37,9 +108,10 @@ jobs:
         run: rm -rf artifacts
 
       - name: Run Playwright tests
+        if: github.event_name == 'pull_request' || steps.reused.outputs.reused != 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AI_ANALYSIS: true
+          AI_ANALYSIS: ${{ env.AI_ANALYSIS_ENABLED }}
           BASE_URL: https://your-app.example.com
           HEADLESS: true
           PW_WORKERS: 2
@@ -53,12 +125,33 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then exit 0; fi
           exit $EXIT
 
+      - name: Record a baseline even when everything passes
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          mkdir -p artifacts
+          # A fully green run leaves `artifacts/` empty, and the upload step
+          # below skips empty directories — so a clean PR would never
+          # produce anything for a later merge to reuse. This marker
+          # guarantees an artifact always exists, recording "zero failures"
+          # as a real, reusable baseline. Must NOT be a dotfile: upload's
+          # hidden-file handling would filter it back out.
+          touch artifacts/baseline-marker.txt
+
+      - name: Merge reused results into this run
+        if: always() && github.event_name == 'push' && steps.reused.outputs.reused == 'true'
+        working-directory: .
+        run: |
+          mkdir -p playwright/artifacts
+          cp -r reused-artifacts/. playwright/artifacts/
+          echo "Reused the source PR's results instead of re-running Playwright."
+
       - name: Upload Playwright HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright/playwright-report/
+          if-no-files-found: ignore
 
       - name: Upload AI failure artifacts
         if: always()
@@ -66,6 +159,7 @@ jobs:
         with:
           name: ai-failure-artifacts
           path: playwright/artifacts/
+          if-no-files-found: ignore
 
       - name: Parse AI failure reports
         if: always()
@@ -83,7 +177,7 @@ jobs:
           fi
 
       - name: Download baseline artifacts from main
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
         uses: dawidd6/action-download-artifact@v6
         with:
           workflow: qa-intelligence.yml
@@ -93,7 +187,7 @@ jobs:
           if_no_artifact_found: warn
 
       - name: Debug baseline contents
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
         run: |
           echo "Baseline:"
           ls -la ../baseline-artifacts || true
@@ -101,24 +195,29 @@ jobs:
           ls -la artifacts || true
 
       - name: Compute failure diff
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
         run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts
 
       - name: Restore failure history cache
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
         uses: actions/cache@v4
         with:
           path: playwright/.cache
-          key: failure-history-${{ github.repository }}-${{ github.sha }}
+          # A static/sha key never changes across re-runs of the same commit,
+          # and actions/cache skips saving once the restored key exactly
+          # matches — so history would populate once and then silently stop
+          # accumulating. A per-run key + prefix restore-keys keeps every
+          # run's save distinct while still restoring the latest match.
+          key: failure-history-${{ github.repository }}-${{ github.run_id }}
           restore-keys: |
             failure-history-${{ github.repository }}-
 
       - name: Update failure history (recurrence)
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
         run: npx qa-intelligence-history
 
       - name: Comment PR with AI summary
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && env.AI_ANALYSIS_ENABLED == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
