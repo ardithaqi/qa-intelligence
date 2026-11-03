@@ -54,6 +54,20 @@ function formatSection(
 }
 
 export function formatDiffComment(diff: DiffResult): string {
+    const commit = process.env.GITHUB_SHA?.slice(0, 7);
+
+    let body = "## AI Failure Diff Summary\n\n";
+    if (commit) body += `Commit: ${commit}\n`;
+    body += "\n";
+
+    return body + formatDiffSections(diff);
+}
+
+/** The per-failure sections of the diff comment, without the header. */
+export function formatDiffSections(
+    diff: DiffResult,
+    options: { gateNote?: boolean } = {}
+): string {
     const unchangedFailures = diff.unchangedFailures ?? [];
     const newFailures = diff.newFailures ?? [];
     const fixedFailures = diff.fixedFailures ?? [];
@@ -61,13 +75,9 @@ export function formatDiffComment(diff: DiffResult): string {
     const flaky = newFailures.filter((f) => f.is_flaky_suspected);
     const realNewFailures = newFailures.filter((f) => !f.is_flaky_suspected);
 
-    const commit = process.env.GITHUB_SHA?.slice(0, 7);
+    let body = "";
 
-    let body = "## AI Failure Diff Summary\n\n";
-    if (commit) body += `Commit: ${commit}\n`;
-    body += "\n";
-
-    if (unchangedFailures.length > 0) {
+    if (unchangedFailures.length > 0 && options.gateNote !== false) {
         body +=
             "⚠️ **Pre-existing failures** from the base branch are still failing. These are shown for visibility only — **they do not block this PR**. Only **New Issues** block merge.\n\n";
     }

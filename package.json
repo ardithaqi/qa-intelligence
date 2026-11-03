@@ -69,11 +69,12 @@
         "qa-intelligence-init": "dist/cli/init.js",
         "qa-intelligence-diff": "dist/cli/diff.js",
         "qa-intelligence-history": "dist/cli/history.js",
-        "qa-intelligence-comment": "dist/cli/postComment.js"
+        "qa-intelligence-comment": "dist/cli/postComment.js",
+        "ai-release-guardian": "dist/cli/guardian.js"
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",
-        "test": "tsx --test src/**/*.test.ts",
+        "test": "tsx --test 'src/**/*.test.ts'",
         "prepare": "npm run build",
         "dev:diff": "ts-node src/cli/diff.ts --baseline baseline-artifacts --current artifacts --out failure-diff.json",
         "dev:comment": "ts-node src/cli/postComment.ts --diff failure-diff.json --repo owner/repo --pr 1 --token TOKEN"
