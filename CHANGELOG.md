@@ -21,7 +21,10 @@ merge-gate behavior in the scaffolded workflow.
     every point it added
   - makes a final **SAFE TO MERGE / REVIEW REQUIRED / BLOCK** decision with a reason
   - `--fail-on review|block|never` merge gate (`RELEASE_GUARDIAN_FAIL_ON`)
-  - writes `release-report.json` and `release-guardian.md`; posts an "AI Release Guardian" PR comment
+  - writes `release-report.json` and `release-guardian.md`; posts a compact "AI Release Guardian" PR
+    comment: the decision, one sentence, and one collapsible line per problem (where · why · likely
+    cause), capped at 10 lines plus "…and N more". Test and cause paths link to the exact line on
+    GitHub, and the still-failing / fixed / score details sit under one "More" section
 - Optional `release-guardian.config.json` for product areas and critical areas
 - Playwright reporter writes `artifacts/run-summary.json` (test totals by final outcome)
 - Programmatic API: `analyzeRelease`, `classifyFailure`, `attributeFailure`, `groupFailures`,

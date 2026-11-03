@@ -6,28 +6,23 @@ A release-quality agent for Playwright CI. It watches each PR's test results and
 
 For every failure it works out whether it's a **real regression**, **flaky**, an **infrastructure** problem or a **broken test**. It then groups failures that share a cause, points at the **changed file and commit** most likely responsible, scores **release risk**, and ends with one decision: **SAFE TO MERGE**, **REVIEW REQUIRED** or **BLOCK**.
 
+The PR comment stays short no matter how many tests fail. You get one line per **problem**, not per test, and each line expands to show the tests (linked to the exact line), the likely cause (file and commit) and the error:
+
 ```text
 ## AI Release Guardian
+⛔ BLOCK · CRITICAL risk (100/100)
+3 new regressions in Authentication, Profile, Checkout. Likely cause: src/auth/session.ts (commit 82fa7d0).
+248 tests · 5 new failures · 1 still failing from main · 1 fixed · CI run
 
-⛔ BLOCK
-3 new regressions affecting Authentication, Profile, Checkout (risk CRITICAL, 100/100).
-Most likely source: src/auth/session.ts (60% confidence, commit 82fa7d0).
-
-Release risk: CRITICAL · Score: 100/100
-Tests analyzed: 248 · Failures: 6 · New: 5 · Pre-existing: 1
-
-Classification (new failures)
-- Real regressions: 3
-- Flaky: 1
-- Infrastructure: 1
-- Test issues: 0
-
-Probable root cause: src/auth/session.ts (60% confidence)
-Likely introduced by: commit 82fa7d0 — Persist session token in storage
-Affected areas: Authentication, Profile, Checkout
+▸ 🔴 Regression · 3 tests · expected "dashboard", got "login" · likely cause src/auth/session.ts
+▸ 🌐 Infrastructure · report.spec.ts:5 · can't reach server (ERR_CONNECTION_REFUSED)
+▸ 🔁 Flaky · search.spec.ts:5 · failed, then passed on retry
+▸ More: still failing (1), fixed (1), score
 ```
 
-Every number has a reason attached in the comment: each classification lists its evidence, and the risk score lists each point it added. Classification, scoring and the decision are **deterministic code**. AI analysis is optional extra evidence and never the verdict.
+Up to 10 problem lines are shown, and anything beyond that sits behind "…and N more". Failures with the same cause (the same changed file, or the exact same error) share one line.
+
+Every number has a reason, one click away: each problem shows why it was classified that way, and the score breakdown sits under **More**. Classification, scoring and the decision are **deterministic code**. AI analysis is optional extra evidence and never the verdict.
 
 Still included from QA Intelligence: AI failure analysis, PR failure diff (new / flaky / still failing / fixed), retry-aware flaky detection, recurrence tracking and the Flaky Watchlist.
 
