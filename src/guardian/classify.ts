@@ -107,6 +107,18 @@ export function classifyFailure(input: ClassifyInput): Classification {
     else reasons.push("Ran once (no retries), so flakiness can't be ruled out.");
 
     let confidence: number;
+    // The AI read the diff and blames the failing test's own code: a broken test, not unclear.
+    // Only for failures the rules can't place; capped so it never outranks hard evidence.
+    const aiBlamesTest =
+        attribution?.kind === "test_file" &&
+        attribution.evidence.startsWith("AI read the diff") &&
+        attribution.confidence >= 70 &&
+        !DETERMINISTIC_TYPES.has(failure.failure_type);
+    if (aiBlamesTest && !history) {
+        reasons.push(`AI traced it to the test's own code in this PR: ${attribution!.evidence.replace(/^AI read the diff( and agrees)?: /, "")}`);
+        return { category: "test_issue", confidence: 60, reasons };
+    }
+
     if (DETERMINISTIC_TYPES.has(failure.failure_type)) {
         confidence = 65;
     } else if (failure.failure_type === "timeout") {

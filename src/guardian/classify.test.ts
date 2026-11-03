@@ -122,3 +122,33 @@ describe("classifyFailure", () => {
         assert.ok(r.confidence < 100);
     });
 });
+
+describe("classifyFailure with AI root cause", () => {
+    const timeout = base({ failure_type: "timeout", errorMessage: "Test timeout of 1000ms exceeded." });
+    const aiOnTest: Attribution = {
+        path: "playwright/tests/login.spec.ts", kind: "test_file", confidence: 80,
+        evidence: "AI read the diff: the test sets setTimeout(1000) but waits 3000ms.",
+    };
+
+    it("an unclear timeout the AI traces to the test's own code is a broken test", () => {
+        const r = classifyFailure({ failure: timeout, lifecycle: "new", attribution: aiOnTest });
+        assert.equal(r.category, "test_issue");
+        assert.equal(r.confidence, 60);
+        assert.ok(r.reasons.some((x) => x.includes("setTimeout(1000)")));
+    });
+
+    it("needs the AI to be confident", () => {
+        const r = classifyFailure({ failure: timeout, lifecycle: "new", attribution: { ...aiOnTest, confidence: 60 } });
+        assert.equal(r.category, "unknown");
+    });
+
+    it("never overrides a clear assertion regression", () => {
+        const r = classifyFailure({ failure: base(), lifecycle: "new", attribution: aiOnTest });
+        assert.notEqual(r.category, "test_issue");
+    });
+
+    it("a plain naming match on the test file does not count", () => {
+        const r = classifyFailure({ failure: timeout, lifecycle: "new", attribution: { ...aiOnTest, evidence: "The failing test file itself was changed in this PR." } });
+        assert.equal(r.category, "unknown");
+    });
+});
