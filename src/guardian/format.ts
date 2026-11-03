@@ -1,24 +1,18 @@
 import { INFRASTRUCTURE_PATTERN, stripAnsi } from "../lib/failureSignals";
 import type { DiffResult, Failure } from "../lib/types";
-import type { FailureCategory, FailureGroup, ReleaseDecision, ReleaseReport } from "./types";
+import type { FailureCategory, FailureGroup, ReleaseReport } from "./types";
 
 export const GUARDIAN_COMMENT_HEADER = "## AI Release Guardian";
 
 /** Problems listed one line each; the rest go behind "and N more". */
 export const MAX_PROBLEM_LINES = 10;
 
-const DECISION_ICON: Record<ReleaseDecision, string> = {
-    "SAFE TO MERGE": "✅",
-    "REVIEW REQUIRED": "⚠️",
-    BLOCK: "⛔",
-};
-
-const CATEGORY: Record<FailureCategory, { icon: string; label: string }> = {
-    regression: { icon: "🔴", label: "Regression" },
-    test_issue: { icon: "🧪", label: "Broken test" },
-    unknown: { icon: "❓", label: "Unclear" },
-    infrastructure: { icon: "🌐", label: "Infrastructure" },
-    flaky: { icon: "🔁", label: "Flaky" },
+const CATEGORY: Record<FailureCategory, { label: string }> = {
+    regression: { label: "Regression" },
+    test_issue: { label: "Broken test" },
+    unknown: { label: "Unclear" },
+    infrastructure: { label: "Infrastructure" },
+    flaky: { label: "Flaky" },
 };
 
 export interface CommentOptions {
@@ -113,14 +107,14 @@ function causeOf(group: FailureGroup): string | undefined {
 }
 
 function problemSummary(group: FailureGroup): string {
-    const { icon, label } = CATEGORY[group.category];
+    const { label } = CATEGORY[group.category];
     const first = group.failures[0].failure;
     const where = group.failures.length === 1
         ? `<code>${html(`${basename(first.file)}:${first.line}`)}</code>`
         : `${group.failures.length} tests`;
     const cause = causeOf(group);
     const parts = [
-        `${icon} <b>${label}</b>`,
+        `<b>${label}</b>`,
         where,
         html(shortReason(first)),
         cause ? `likely cause <code>${html(cause)}</code>` : "",
@@ -206,7 +200,7 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
         out.push(`**Risk ${report.risk.score}/100:** ${report.risk.reasons.map(md).join(", ")}`);
         out.push("<sub>0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL</sub>");
         if (report.warnings.length) {
-            out.push("", ...report.warnings.map((w) => `<sub>⚠ ${md(w)}</sub>`));
+            out.push("", ...report.warnings.map((w) => `<sub>Note: ${md(w)}</sub>`));
         }
     }
 
@@ -221,6 +215,33 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
     return `<details><summary>More: ${label}</summary>\n\n${out.join("\n")}\n\n</details>\n`;
 }
 
+/**
+ * GitHub alert box for the verdict: CAUTION (red) for BLOCK, IMPORTANT (purple)
+ * for REVIEW REQUIRED, WARNING (yellow) for a safe PR that still had flaky or
+ * infrastructure failures. A clean safe PR gets no box at all.
+ */
+export function verdictAlert(report: ReleaseReport): "CAUTION" | "IMPORTANT" | "WARNING" | null {
+    if (report.decision === "BLOCK") return "CAUTION";
+    if (report.decision === "REVIEW REQUIRED") return "IMPORTANT";
+    const c = report.counts;
+    return c.flaky + c.infrastructure + c.regression + c.test_issue + c.unknown > 0 ? "WARNING" : null;
+}
+
+function verdictBlock(report: ReleaseReport): string {
+    const alert = verdictAlert(report);
+    // SAFE needs no risk score; the verdict says it all.
+    const title = report.decision === "SAFE TO MERGE"
+        ? `**${report.decision}**`
+        : `**${report.decision}** · ${report.risk.level} risk (${report.risk.score}/100)`;
+
+    if (!alert) {
+        // Clean run: the counts line already says what happened.
+        const reason = report.failureCount > 0 || report.fixedCount > 0 ? `${md(report.decisionReason)}\n\n` : "";
+        return `### ${report.decision}\n\n${reason}`;
+    }
+    return `> [!${alert}]\n> ${title}\n>\n> ${md(report.decisionReason)}\n\n`;
+}
+
 /** Compact PR comment: decision, one line, one collapsible line per problem. */
 export function formatReleaseComment(
     report: ReleaseReport,
@@ -228,15 +249,9 @@ export function formatReleaseComment(
     options: CommentOptions = {}
 ): string {
     const commit = options.commit ?? process.env.GITHUB_SHA ?? "";
-    const icon = DECISION_ICON[report.decision];
 
     let body = `${GUARDIAN_COMMENT_HEADER}\n\n`;
-    // SAFE needs no risk score; the verdict says it all.
-    body += report.decision === "SAFE TO MERGE"
-        ? `### ${icon} ${report.decision}\n\n`
-        : `### ${icon} ${report.decision} · ${report.risk.level} risk (${report.risk.score}/100)\n\n`;
-    // A clean run needs no sentence: the counts line already says every test passed.
-    if (report.failureCount > 0 || report.fixedCount > 0) body += `${md(report.decisionReason)}\n\n`;
+    body += verdictBlock(report);
     body += `<sub>${countsLine(report, options)}${commit ? ` · ${codeMd(shortSha(commit))}` : ""}</sub>\n\n`;
 
     const shown = report.groups.slice(0, MAX_PROBLEM_LINES);

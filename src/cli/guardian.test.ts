@@ -73,7 +73,7 @@ describe("ai-release-guardian analyze (CLI)", () => {
 
             const result = run(root, "analyze", "--base", "main");
             assert.equal(result.status, 1, result.stderr);
-            assert.match(result.stdout, /⛔ BLOCK/);
+            assert.match(result.stdout, /\*\*BLOCK\*\*/);
 
             const saved = JSON.parse(fs.readFileSync(path.join(root, "release-report.json"), "utf8"));
             assert.equal(saved.report.decision, "BLOCK");

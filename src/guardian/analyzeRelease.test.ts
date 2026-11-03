@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { DiffResult, Failure } from "../lib/types";
 import { analyzeRelease } from "./analyzeRelease";
 import { decideRelease } from "./decision";
-import { formatReleaseComment, GUARDIAN_COMMENT_HEADER, shortReason } from "./format";
+import { formatReleaseComment, GUARDIAN_COMMENT_HEADER, shortReason, verdictAlert } from "./format";
 import { groupFailures } from "./group";
 import { riskLevel, scoreRisk } from "./risk";
 import type { ClassifiedFailure, FailureCategory } from "./types";
@@ -206,10 +206,10 @@ describe("analyzeRelease", () => {
 
         const md = formatReleaseComment(report, undefined, { commit: "abcdef1234" });
         assert.ok(md.startsWith(GUARDIAN_COMMENT_HEADER));
-        assert.match(md, /### ⛔ BLOCK · CRITICAL risk/);
+        assert.match(md, /> \[!CAUTION\]\n> \*\*BLOCK\*\* · CRITICAL risk \(100\/100\)/);
         assert.match(md, /248 tests · 5 new failures · 1 still failing from main · 1 fixed/);
         // The three session failures are one problem line, not three.
-        assert.match(md, /<summary>🔴 <b>Regression<\/b> · 3 tests · expected \/dashboard, got \/login · likely cause <code>src\/auth\/session\.ts<\/code><\/summary>/);
+        assert.match(md, /<summary><b>Regression<\/b> · 3 tests · expected \/dashboard, got \/login · likely cause <code>src\/auth\/session\.ts<\/code><\/summary>/);
         assert.match(md, /commit `82fa7d0` "Persist session token in storage"/);
         assert.equal((md.match(/<summary>/g) ?? []).length, 4, "3 problems + More");
     });
@@ -268,7 +268,7 @@ describe("formatReleaseComment", () => {
 
     it("renders a clean SAFE summary", () => {
         const md = formatReleaseComment(analyzeRelease(diff()), undefined, { commit: "" });
-        assert.match(md, /### ✅ SAFE TO MERGE\n/);
+        assert.match(md, /### SAFE TO MERGE\n/);
         assert.doesNotMatch(md, /risk/i, "no risk score on a safe PR");
         assert.equal((md.match(/<summary>/g) ?? []).length, 0, "nothing to expand");
     });
@@ -276,13 +276,23 @@ describe("formatReleaseComment", () => {
     it("all-green with totals is just the verdict and one line", () => {
         const report = analyzeRelease(diff(), { runSummary: { total: 248, passed: 248, failed: 0, flaky: 0, skipped: 0 } });
         const md = formatReleaseComment(report, undefined, { commit: "" });
-        assert.equal(md, "## AI Release Guardian\n\n### ✅ SAFE TO MERGE\n\n<sub>all 248 tests passed</sub>\n\n");
+        assert.equal(md, "## AI Release Guardian\n\n### SAFE TO MERGE\n\n<sub>all 248 tests passed</sub>\n\n");
     });
 
-    it("safe with a flaky test says SAFE once and shows no score", () => {
+    it("safe with a flaky test is a yellow box, says SAFE once and shows no score", () => {
         const md = formatReleaseComment(analyzeRelease(diff({ newFailures: [flakyNoise] })), undefined, { commit: "" });
+        assert.match(md, /> \[!WARNING\]\n> \*\*SAFE TO MERGE\*\*\n>\n> No regressions\. Only 1 flaky test, which doesn't block\./);
         assert.equal((md.match(/SAFE TO MERGE/g) ?? []).length, 1);
         assert.doesNotMatch(md, /risk|score/i);
+    });
+
+    it("picks the alert colour from the decision", () => {
+        const regression = f("tests/checkout.spec.ts", { title: "cart" });
+        assert.equal(verdictAlert(analyzeRelease(diff())), null, "clean: no box");
+        assert.equal(verdictAlert(analyzeRelease(diff({ unchangedFailures: [regression] }))), null, "only main's failures: no box");
+        assert.equal(verdictAlert(analyzeRelease(diff({ newFailures: [infraNoise] }))), "WARNING");
+        assert.equal(verdictAlert(analyzeRelease(diff({ newFailures: [f("tests/x.spec.ts", { errorMessage: "Test timeout of 30000ms exceeded.", failure_type: "timeout" })] }))), "IMPORTANT");
+        assert.equal(verdictAlert(analyzeRelease(diff({ newFailures: [regression] }))), "CAUTION");
     });
 
     it("expanded details show the error up to Playwright's call log", () => {
@@ -294,9 +304,11 @@ describe("formatReleaseComment", () => {
         assert.doesNotMatch(md, /Call log/);
     });
 
-    it("never writes an em dash", () => {
+    it("never writes an em dash or emoji icons", () => {
         const busy = analyzeRelease(diff({ newFailures: [f("tests/login.spec.ts", { title: "t" }), flakyNoise, infraNoise], unchangedFailures: [f("tests/legacy.spec.ts")] }));
-        assert.doesNotMatch(formatReleaseComment(busy) + busy.decisionReason, /\u2014/);
+        const text = formatReleaseComment(busy) + busy.decisionReason;
+        assert.doesNotMatch(text, /\u2014/);
+        assert.doesNotMatch(text, /\p{Extended_Pictographic}/u);
     });
 
     it("stays short with many problems: 10 lines, the rest collapsed", () => {
