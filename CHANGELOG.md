@@ -2,7 +2,7 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
-## 2.0.0 — AI Release Guardian
+## 2.0.0 - AI Release Guardian
 
 The product is now **AI Release Guardian**. The npm package name, imports, existing CLIs and their
 output files are unchanged. There are no breaking API changes. The major version marks the new
@@ -24,7 +24,8 @@ merge-gate behavior in the scaffolded workflow.
   - writes `release-report.json` and `release-guardian.md`; posts a compact "AI Release Guardian" PR
     comment: the decision, one sentence, and one collapsible line per problem (where · why · likely
     cause), capped at 10 lines plus "…and N more". Test and cause paths link to the exact line on
-    GitHub, and the still-failing / fixed / score details sit under one "More" section
+    GitHub, and the still-failing / fixed / score details sit under one "More" section. A clean or
+    safe PR shows just "SAFE TO MERGE" and one line, with no risk score
 - Optional `release-guardian.config.json` for product areas and critical areas
 - Playwright reporter writes `artifacts/run-summary.json` (test totals by final outcome)
 - Programmatic API: `analyzeRelease`, `classifyFailure`, `attributeFailure`, `groupFailures`,
@@ -47,6 +48,14 @@ merge-gate behavior in the scaffolded workflow.
 
 ### Fixed
 
+- Default Anthropic model `claude-3-5-haiku-latest` was retired and returned 404, so Anthropic users
+  without `AI_MODEL` silently got no AI analysis. Default is now `claude-haiku-5-5`, and the cost
+  table has current prices (Opus 4.6 to 4.8 were listed at $15 / $75, now $5 / $25)
+- An empty key variable (e.g. `OPENAI_API_KEY=""`, which is how GitHub renders a missing secret)
+  failed config validation and disabled AI even when `ANTHROPIC_API_KEY` was set. Empty values now
+  count as unset, and without `AI_PROVIDER` the provider is picked from whichever key exists
+- Scaffolded workflow passes `ANTHROPIC_API_KEY` and the `AI_PROVIDER` / `AI_MODEL` repo variables,
+  and enables AI analysis when either key is present
 - `qa-intelligence-history` dropped `blockingFailures` and any extra fields when rewriting
   `failure-diff.json`
 - Scaffolded workflow: merge-time reuse downloaded an artifact name the PR run never uploads
@@ -60,12 +69,12 @@ merge-gate behavior in the scaffolded workflow.
 ### Fixed
 
 - AI failure JSON parsing now tolerates a trailing ` ```json ` markdown fence (or any trailing text)
-  around SECTION 2 — some providers (notably Claude/Anthropic) wrap it despite the prompt saying not
+  around SECTION 2 - some providers (notably Claude/Anthropic) wrap it despite the prompt saying not
   to, which previously broke `JSON.parse` and silently dropped the failure from the diff
 
 ### Added (scaffolded CI template)
 
-- `concurrency` guard — cancels superseded PR runs only, never a push/merge run mid-flight, so a
+- `concurrency` guard - cancels superseded PR runs only, never a push/merge run mid-flight, so a
   test's cleanup (e.g. restoring a shared fixture in a `finally`) can't get killed mid-run
 - Push (merge) runs now reuse the merged PR's already-completed results instead of re-running the
   full Playwright suite, falling back to a fresh run when no reusable result is found
@@ -92,11 +101,11 @@ merge-gate behavior in the scaffolded workflow.
 
 ### Fixed
 
-- AI cost rollup and "Saved AI summary: ..." line printed at the very end of the terminal output, after Playwright's own list-reporter summary and HTML report note — previously `globalTeardown` logged them before tests finished reporting, so they appeared above failure stack traces instead of at the bottom
+- AI cost rollup and "Saved AI summary: ..." line printed at the very end of the terminal output, after Playwright's own list-reporter summary and HTML report note - previously `globalTeardown` logged them before tests finished reporting, so they appeared above failure stack traces instead of at the bottom
 
 ### Added
 
-- `qa-intelligence/playwright/reporter` — official Playwright reporter (`AiSummaryReporter`); register it last in `playwright.config.ts` to print the rollup after all other reporters
+- `qa-intelligence/playwright/reporter` - official Playwright reporter (`AiSummaryReporter`); register it last in `playwright.config.ts` to print the rollup after all other reporters
 - `QA_INTELLIGENCE_TEARDOWN_LOGS` env var (default `false`) to restore `globalTeardown`'s inline provider/analyzing/rollup logs if needed
 
 ### Changed
@@ -159,7 +168,7 @@ merge-gate behavior in the scaffolded workflow.
 
 ### Added
 
-- **Flaky Watchlist** in PR comments — tests intermittent across recent PR CI runs (from `.cache/failure-history.json`)
+- **Flaky Watchlist** in PR comments - tests intermittent across recent PR CI runs (from `.cache/failure-history.json`)
 - Omits tests already shown as **New Issues** or **Still Failing** on the current PR
 - `computeFlakyWatchlist` exported from package root for custom integrations
 
@@ -208,7 +217,7 @@ merge-gate behavior in the scaffolded workflow.
 
 ### Added
 
-- `npx qa-intelligence init` — scaffolds `playwright/` and `.github/workflows/qa-intelligence.yml`
+- `npx qa-intelligence init` - scaffolds `playwright/` and `.github/workflows/qa-intelligence.yml`
 - `templates/` bundled in npm package (`playwright` config, example test, CI workflow)
 - `qa-intelligence-init` bin alias
 

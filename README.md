@@ -32,7 +32,7 @@ Install it into your existing app repo, or start from the [framework template](h
 
 ## Quick start
 
-Run from your **repo root** (not inside `playwright/`). You do **not** need a `playwright/` folder beforehand — `init` creates it.
+Run from your **repo root** (not inside `playwright/`). You do **not** need a `playwright/` folder beforehand - `init` creates it.
 
 ```bash
 npx qa-intelligence init
@@ -49,15 +49,15 @@ AI_ANALYSIS=true
 OPENAI_API_KEY=sk-...
 ```
 
-CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. The `qa-intelligence/playwright/reporter` entry in `playwright.config.ts` prints one combined cost rollup line — and the path to the saved `ai-summary.md` — after Playwright's own pass/fail summary, so it's the last thing in the terminal instead of getting buried above the failure output. Set `RELEASE_GUARDIAN_TEARDOWN_LOGS=true` (or the older `QA_INTELLIGENCE_TEARDOWN_LOGS`) if you also want teardown's per-failure "Analyzing"/"Saved AI analysis" lines (off by default).
+CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. The `qa-intelligence/playwright/reporter` entry in `playwright.config.ts` prints one combined cost rollup line - and the path to the saved `ai-summary.md` - after Playwright's own pass/fail summary, so it's the last thing in the terminal instead of getting buried above the failure output. Set `RELEASE_GUARDIAN_TEARDOWN_LOGS=true` (or the older `QA_INTELLIGENCE_TEARDOWN_LOGS`) if you also want teardown's per-failure "Analyzing"/"Saved AI analysis" lines (off by default).
 
 ### AI providers
 
-Default provider is **OpenAI** (`gpt-4o-mini`). Configure via env:
+If `AI_PROVIDER` isn't set, the provider comes from whichever key exists: **OpenAI** (`gpt-4o-mini`) if `OPENAI_API_KEY` is set, otherwise **Anthropic** (`claude-haiku-5-5`) if `ANTHROPIC_API_KEY` is set. Empty values count as unset, so a missing GitHub secret doesn't break anything. Configure via env:
 
 | Variable | Purpose |
 |----------|---------|
-| `AI_PROVIDER` | `openai` (default), `anthropic`, or `openai-compatible` |
+| `AI_PROVIDER` | `openai`, `anthropic`, or `openai-compatible` (picked from the keys when unset) |
 | `AI_MODEL` | Model name (provider-specific default if unset) |
 | `OPENAI_API_KEY` | API key for OpenAI (or fallback for `openai-compatible`) |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
@@ -75,7 +75,7 @@ AI_MODEL=gpt-4o-mini
 # Anthropic
 AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
-AI_MODEL=claude-3-5-haiku-latest
+AI_MODEL=claude-haiku-5-5
 
 # OpenAI-compatible (Ollama, Azure, etc.)
 AI_PROVIDER=openai-compatible
@@ -86,14 +86,18 @@ AI_MODEL=llama3
 
 Everything else (diff, classification, grouping, risk, decision) works **without AI**. With no API key set, AI analysis is skipped and failures are classified from Playwright's error output.
 
+**What AI adds.** One small call per failed test (about $0.0005 to $0.001 with `claude-haiku-5-5`). The AI's failure type and confidence become one more piece of evidence: when it agrees with the rules, confidence goes up a few points and the comment says "AI analysis agrees". It never overrides the rules. A strict-mode locator stays a broken test and a refused connection stays infrastructure even if the AI labels them differently, and a bare timeout stays "Unclear" however confident the AI is.
+
+In CI, add `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` as a repo secret. The scaffolded workflow passes both, plus the optional `AI_PROVIDER` / `AI_MODEL` repo variables.
+
 `init` scaffolds:
 
-- `playwright/` — `.env.example`, `.gitignore`, `package.json`, `tsconfig.json`, `playwright.config.ts`, example test
-- `.github/workflows/qa-intelligence.yml` — runs tests, assesses the PR, gates the merge and comments (skip with `--no-ci`)
+- `playwright/` - `.env.example`, `.gitignore`, `package.json`, `tsconfig.json`, `playwright.config.ts`, example test
+- `.github/workflows/qa-intelligence.yml` - runs tests, assesses the PR, gates the merge and comments (skip with `--no-ci`)
 
 **Then:** set `BASE_URL` in the workflow file. Optionally add `OPENAI_API_KEY` to GitHub secrets for AI analysis.
 
-**Tests** — always import from the package, not Playwright directly:
+**Tests** - always import from the package, not Playwright directly:
 
 ```ts
 import { test, expect } from "qa-intelligence/playwright";
@@ -313,7 +317,7 @@ The building blocks (`classifyFailure`, `attributeFailure`, `groupFailures`, `sc
 
 ## Full template (optional)
 
-Prefer a ready-made project with Docker, example tests, and CI pre-wired? Use the **[qa-intelligence-framework](https://github.com/ardithaqi/qa-intelligence-framework)** template — click "Use this template".
+Prefer a ready-made project with Docker, example tests, and CI pre-wired? Use the **[qa-intelligence-framework](https://github.com/ardithaqi/qa-intelligence-framework)** template - click "Use this template".
 
 For adding to an existing repo with a `playwright/` subfolder, see the [framework adoption guide](https://github.com/ardithaqi/qa-intelligence-framework#add-to-an-existing-project-npm-package) (`Dockerfile`, CI path changes).
 
@@ -323,7 +327,7 @@ For adding to an existing repo with a `playwright/` subfolder, see the [framewor
 
 The scaffolded workflow already reuses a merged PR's results on push instead of re-running the suite,
 and runs AI analysis only when an API key is configured. For patterns that are too
-project-specific to default to — like splitting a monorepo's suite by which app changed — see
+project-specific to default to - like splitting a monorepo's suite by which app changed - see
 [`docs/recipes.md`](docs/recipes.md).
 
 ---
