@@ -142,13 +142,19 @@ describe("groupFailures", () => {
         assert.deepEqual(groups[0].areas, ["Authentication", "Profile", "Checkout"]);
     });
 
-    it("groups identical error signatures that differ only in values", () => {
-        const groups = groupFailures([
-            classified("regression", { failure: f("tests/a.spec.ts", { errorMessage: "Expected 3 items, got 4" }) }),
-            classified("regression", { failure: f("tests/b.spec.ts", { errorMessage: "Expected 7 items, got 1" }) }),
+    it("groups the same error across tests, but not different values", () => {
+        const same = groupFailures([
+            classified("regression", { failure: f("tests/a.spec.ts", { errorMessage: "Expected: \"dashboard\"\nReceived: \"login\"" }) }),
+            classified("regression", { failure: f("tests/b.spec.ts", { errorMessage: "Expected: \"dashboard\"\nReceived: \"login\"" }) }),
         ]);
-        assert.equal(groups.length, 1);
-        assert.equal(groups[0].rootCauseKind, "error_signature");
+        assert.equal(same.length, 1);
+        assert.equal(same[0].rootCauseKind, "error_signature");
+
+        const different = groupFailures([
+            classified("regression", { failure: f("tests/a.spec.ts", { errorMessage: "Expected: \"cart-1\"\nReceived: \"0\"" }) }),
+            classified("regression", { failure: f("tests/b.spec.ts", { errorMessage: "Expected: \"orders-3\"\nReceived: \"2\"" }) }),
+        ]);
+        assert.equal(different.length, 2);
     });
 
     it("orders regressions before noise", () => {

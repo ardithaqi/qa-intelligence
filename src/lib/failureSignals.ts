@@ -40,22 +40,25 @@ export function inferFailureType(errorMessage: string | undefined): FailureType 
 }
 
 /**
- * Normalized one-line signature used to group failures with the same error:
- * strips numbers, quoted values and paths so "expected 3, got 4" and
- * "expected 5, got 6" collapse together.
+ * Signature used to group failures that hit the *same* error. Keeps the
+ * assertion and its expected/received values (two tests expecting different
+ * values are different problems) but drops what varies between runs:
+ * timeouts, absolute paths, line:col, ports and the Playwright call log.
  */
 export function errorSignature(errorMessage: string | undefined): string {
-    const firstLine =
-        stripAnsi(errorMessage ?? "")
-            .split("\n")
-            .map((l) => l.trim())
-            .find((l) => l.length > 0) ?? "";
+    const lines = stripAnsi(errorMessage ?? "")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+    const callLog = lines.findIndex((l) => /^Call log:/.test(l));
+    const relevant = (callLog >= 0 ? lines.slice(0, callLog) : lines).slice(0, 4);
 
-    return firstLine
+    return relevant
+        .join(" | ")
         .replace(/^Error:\s*/, "")
-        .replace(/(["'`]).*?\1/g, "<v>")
-        .replace(/https?:\/\/\S+/g, "<url>")
-        .replace(/(?:\/[\w.-]+)+/g, "<path>")
-        .replace(/\d+/g, "<n>")
-        .slice(0, 160);
+        .replace(/\b\d+ms\b/g, "<t>ms")
+        .replace(/(?:[A-Za-z]:)?(?:\/[\w.-]+){2,}/g, "<path>")
+        .replace(/:\d+:\d+\b/g, ":<l>")
+        .replace(/(https?:\/\/[^/\s:]+):\d+/g, "$1")
+        .slice(0, 300);
 }

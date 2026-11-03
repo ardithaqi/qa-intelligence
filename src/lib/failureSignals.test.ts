@@ -28,15 +28,22 @@ describe("inferFailureType", () => {
 });
 
 describe("errorSignature", () => {
-    it("collapses messages that differ only in values, paths or URLs", () => {
+    it("matches the same error across runs (timeouts, paths, line numbers differ)", () => {
         assert.equal(
-            errorSignature("Error: Expected 3 rows at /tmp/a/b.ts, got \"x\" from https://a.test/1"),
-            errorSignature("Expected 9 rows at /home/c/d.ts, got \"y\" from https://b.test/2")
+            errorSignature("Error: Timed out 300ms waiting for expect(locator).toHaveText(expected)\nExpected: \"dashboard\"\nReceived: \"login\"\nCall log:\n  - waited 12ms"),
+            errorSignature("Timed out 5000ms waiting for expect(locator).toHaveText(expected)\nExpected: \"dashboard\"\nReceived: \"login\"\nCall log:\n  - waited 99ms")
+        );
+        assert.equal(
+            errorSignature("TypeError: x is undefined at /home/a/src/app.ts:10:5"),
+            errorSignature("TypeError: x is undefined at /Users/b/src/app.ts:44:2")
         );
     });
 
-    it("keeps different errors apart and uses the first non-empty line", () => {
+    it("keeps different expected/received values apart", () => {
+        assert.notEqual(
+            errorSignature("Timed out 300ms waiting for expect(locator).toHaveText(expected)\nExpected: \"cart-1\"\nReceived: \"0\""),
+            errorSignature("Timed out 300ms waiting for expect(locator).toHaveText(expected)\nExpected: \"orders-3\"\nReceived: \"2\"")
+        );
         assert.notEqual(errorSignature("Expected 3 rows"), errorSignature("Timeout 3ms exceeded"));
-        assert.equal(errorSignature("\n\n  Boom 1\nsecond"), "Boom <n>");
     });
 });
