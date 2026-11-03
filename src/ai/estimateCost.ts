@@ -1,7 +1,7 @@
 import { AiProviderName } from "./config";
 import { AiUsage } from "./types";
 
-/** USD per million tokens (approx; pricing drifts — treat as estimate only). */
+/** USD per million tokens (approx; pricing drifts - treat as estimate only). */
 const RATES: Record<
     AiProviderName,
     { inputPerMTok: number; outputPerMTok: number }
@@ -15,12 +15,19 @@ const ANTHROPIC_PRICING_PER_M: Record<
     string,
     { input: number; output: number }
 > = {
+    "claude-fable-5-1": { input: 10, output: 50 },
+    "claude-fable-5": { input: 10, output: 50 },
+    "claude-opus-5-5": { input: 4, output: 20 },
     "claude-opus-5": { input: 5, output: 25 },
-    "claude-opus-4-8": { input: 15, output: 75 },
-    "claude-opus-4-6": { input: 15, output: 75 },
-    "claude-3-5-haiku-latest": { input: 0.8, output: 4 },
-    "claude-3-5-sonnet-latest": { input: 3, output: 15 },
+    "claude-opus-4-8": { input: 5, output: 25 },
+    "claude-opus-4-7": { input: 5, output: 25 },
+    "claude-opus-4-6": { input: 5, output: 25 },
+    "claude-sonnet-5-5": { input: 2, output: 10 },
+    "claude-sonnet-5": { input: 2, output: 10 },
     "claude-sonnet-4-6": { input: 3, output: 15 },
+    // Prompts up to 100K tokens; failure prompts are far below that.
+    "claude-haiku-5-5": { input: 0.1, output: 0.5 },
+    "claude-haiku-4-5": { input: 1, output: 5 },
 };
 
 export function resolveAnthropicRates(model: string): {
@@ -29,7 +36,7 @@ export function resolveAnthropicRates(model: string): {
 } {
     if (ANTHROPIC_PRICING_PER_M[model]) return ANTHROPIC_PRICING_PER_M[model];
     if (model.includes("opus")) return { input: 5, output: 25 };
-    if (model.includes("haiku")) return { input: 0.8, output: 4 };
+    if (model.includes("haiku")) return { input: 1, output: 5 };
     return { input: 3, output: 15 };
 }
 

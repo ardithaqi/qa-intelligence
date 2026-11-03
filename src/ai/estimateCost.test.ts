@@ -9,10 +9,8 @@ import {
 
 describe("resolveAnthropicRates", () => {
     it("uses exact model pricing when listed", () => {
-        assert.deepEqual(
-            resolveAnthropicRates("claude-3-5-haiku-latest"),
-            { input: 0.8, output: 4 }
-        );
+        assert.deepEqual(resolveAnthropicRates("claude-haiku-5-5"), { input: 0.1, output: 0.5 });
+        assert.deepEqual(resolveAnthropicRates("claude-opus-4-8"), { input: 5, output: 25 });
         assert.deepEqual(resolveAnthropicRates("claude-opus-5"), {
             input: 5,
             output: 25,
@@ -20,9 +18,9 @@ describe("resolveAnthropicRates", () => {
     });
 
     it("falls back by model name substring", () => {
-        assert.deepEqual(resolveAnthropicRates("claude-haiku-4-5"), {
-            input: 0.8,
-            output: 4,
+        assert.deepEqual(resolveAnthropicRates("claude-haiku-9-9"), {
+            input: 1,
+            output: 5,
         });
         assert.deepEqual(resolveAnthropicRates("claude-opus-4-1"), {
             input: 5,
@@ -40,13 +38,13 @@ describe("resolveAnthropicRates", () => {
 
 describe("estimateAnthropicCost", () => {
     it("estimates haiku-style cost from input/output tokens", () => {
-        const cost = estimateAnthropicCost("claude-3-5-haiku-latest", {
+        const cost = estimateAnthropicCost("claude-haiku-4-5", {
             inputTokens: 944,
             outputTokens: 263,
         });
         assert.ok(cost !== undefined);
-        // 944/1e6 * 0.8 + 263/1e6 * 4 = 0.0018072
-        assert.equal(Number(cost!.toFixed(6)), 0.001807);
+        // 944/1e6 * 1 + 263/1e6 * 5 = 0.002259
+        assert.equal(Number(cost!.toFixed(6)), 0.002259);
     });
 });
 
@@ -55,9 +53,10 @@ describe("estimateCostUsd", () => {
         const cost = estimateCostUsd(
             "anthropic",
             { inputTokens: 944, outputTokens: 263 },
-            "claude-3-5-haiku-latest"
+            "claude-haiku-5-5"
         );
-        assert.equal(Number(cost!.toFixed(6)), 0.001807);
+        // 944/1e6 * 0.1 + 263/1e6 * 0.5 = 0.0002259
+        assert.equal(Number(cost!.toFixed(7)), 0.0002259);
     });
 
     it("estimates openai cost from input/output tokens", () => {

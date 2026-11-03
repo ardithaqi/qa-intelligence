@@ -5,6 +5,38 @@ import { createAiProvider } from "./getProvider";
 import { buildFailureAnalysisPrompt } from "./prompt";
 
 describe("resolveAiConfig", () => {
+    it("treats empty env vars as unset (missing GitHub secrets render as \"\")", () => {
+        const config = resolveAiConfig({
+            AI_PROVIDER: "anthropic",
+            ANTHROPIC_API_KEY: "sk-ant-test",
+            OPENAI_API_KEY: "",
+            AI_API_KEY: "",
+            AI_MODEL: "",
+            AI_BASE_URL: " ",
+        });
+
+        assert.ok(config, "empty OPENAI_API_KEY must not disable Anthropic");
+        assert.equal(config.provider, "anthropic");
+        assert.equal(config.model, "claude-haiku-5-5");
+        assert.equal(config.apiKey, "sk-ant-test");
+    });
+
+    it("picks anthropic automatically when only ANTHROPIC_API_KEY is set", () => {
+        const config = resolveAiConfig({ ANTHROPIC_API_KEY: "sk-ant-test", OPENAI_API_KEY: "" });
+        assert.equal(config?.provider, "anthropic");
+        assert.equal(config?.model, "claude-haiku-5-5");
+    });
+
+    it("prefers openai when both keys are set and AI_PROVIDER is not", () => {
+        const config = resolveAiConfig({ ANTHROPIC_API_KEY: "a", OPENAI_API_KEY: "o" });
+        assert.equal(config?.provider, "openai");
+    });
+
+    it("an empty AI_PROVIDER falls back to the default provider", () => {
+        const config = resolveAiConfig({ AI_PROVIDER: "", OPENAI_API_KEY: "sk-test" });
+        assert.equal(config?.provider, "openai");
+    });
+
     it("defaults to openai with gpt-4o-mini when OPENAI_API_KEY is set", () => {
         const config = resolveAiConfig({
             OPENAI_API_KEY: "sk-test",
@@ -48,7 +80,7 @@ describe("resolveAiConfig", () => {
 
         assert.ok(config);
         assert.equal(config.provider, "anthropic");
-        assert.equal(config.model, "claude-3-5-haiku-latest");
+        assert.equal(config.model, "claude-haiku-5-5");
         assert.equal(config.apiKey, "anthropic-key");
     });
 

@@ -6,7 +6,8 @@ export type AiProviderName = (typeof AI_PROVIDERS)[number];
 const DEFAULT_MODELS: Record<AiProviderName, string> = {
     openai: "gpt-4o-mini",
     "openai-compatible": "gpt-4o-mini",
-    anthropic: "claude-3-5-haiku-latest",
+    // claude-3-5-haiku-latest was retired (404); Haiku 5.5 is the current fast, cheap model.
+    anthropic: "claude-haiku-5-5",
 };
 
 const AiConfigSchema = z.object({
@@ -23,14 +24,31 @@ export type AiConfig = z.infer<typeof AiConfigSchema> & {
     apiKey: string;
 };
 
+/**
+ * Empty or whitespace-only values count as "not set". GitHub Actions renders a
+ * missing secret (`${{ secrets.OPENAI_API_KEY }}`) as "", which used to fail
+ * validation and silently disable AI even when another provider's key was set.
+ */
+function setting(value: string | undefined): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+}
+
+/** No AI_PROVIDER: use OpenAI if its key is set, else Anthropic if only that key is set. */
+function inferProvider(env: NodeJS.ProcessEnv): AiProviderName | undefined {
+    if (setting(env.OPENAI_API_KEY)) return "openai";
+    if (setting(env.ANTHROPIC_API_KEY)) return "anthropic";
+    return undefined;
+}
+
 function readEnv(env: NodeJS.ProcessEnv = process.env): z.infer<typeof AiConfigSchema> | null {
     const parsed = AiConfigSchema.safeParse({
-        provider: env.AI_PROVIDER?.toLowerCase(),
-        model: env.AI_MODEL,
-        openaiApiKey: env.OPENAI_API_KEY,
-        anthropicApiKey: env.ANTHROPIC_API_KEY,
-        apiKey: env.AI_API_KEY,
-        baseUrl: env.AI_BASE_URL,
+        provider: setting(env.AI_PROVIDER)?.toLowerCase() ?? inferProvider(env),
+        model: setting(env.AI_MODEL),
+        openaiApiKey: setting(env.OPENAI_API_KEY),
+        anthropicApiKey: setting(env.ANTHROPIC_API_KEY),
+        apiKey: setting(env.AI_API_KEY),
+        baseUrl: setting(env.AI_BASE_URL),
     });
 
     if (!parsed.success) {

@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: qa-intelligence-${{ github.workflow }}-${{ github.ref }}
-  # Only cancel superseded PR runs. Never cancel a push/merge run mid-flight —
+  # Only cancel superseded PR runs. Never cancel a push/merge run mid-flight  - 
   # if a test's cleanup (e.g. restoring a shared fixture in a `finally`) gets
   # killed, it can leave shared test data corrupted for every run after it.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -23,7 +23,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      HAS_AI_KEY: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
+      # AI analysis is optional. Set OPENAI_API_KEY or ANTHROPIC_API_KEY as a repo secret
+      # (provider is picked from whichever key exists, or set AI_PROVIDER as a repo variable).
+      HAS_AI_KEY: ${{ (secrets.OPENAI_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '') && 'true' || 'false' }}
       # PR head commit, so file links in the guardian comment point at the PR's code.
       RELEASE_GUARDIAN_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     defaults:
@@ -62,7 +64,7 @@ jobs:
             | jq -r '.[0].head.sha // empty')
 
           if [ -z "$PR_HEAD_SHA" ]; then
-            echo "No PR found for this merge commit — will run fresh instead."
+            echo "No PR found for this merge commit - will run fresh instead."
             exit 0
           fi
 
@@ -72,7 +74,7 @@ jobs:
             | jq -r '.workflow_runs[0].id // empty')
 
           if [ -z "$RUN_ID" ]; then
-            echo "PR found but it has no completed run — will run fresh instead."
+            echo "PR found but it has no completed run - will run fresh instead."
             exit 0
           fi
 
@@ -109,6 +111,9 @@ jobs:
         if: github.event_name == 'pull_request' || steps.reused.outputs.reused != 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
           AI_ANALYSIS: ${{ env.HAS_AI_KEY }}
           BASE_URL: https://your-app.example.com
           HEADLESS: true
@@ -123,7 +128,7 @@ jobs:
         run: |
           mkdir -p artifacts
           # A fully green run leaves `artifacts/` empty, and the upload step
-          # below skips empty directories — so a clean PR would never
+          # below skips empty directories - so a clean PR would never
           # produce anything for a later merge to reuse. This marker
           # guarantees an artifact always exists, recording "zero failures"
           # as a real, reusable baseline. Must NOT be a dotfile: upload's
@@ -185,7 +190,7 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "No baseline yet — expected until this workflow merges and runs on push to the default branch."
+            echo "No baseline yet - expected until this workflow merges and runs on push to the default branch."
           fi
 
       # --- AI Release Guardian -------------------------------------------------
@@ -204,7 +209,7 @@ jobs:
           path: playwright/.cache
           # A key that never changes (e.g. just the repo name) restores fine
           # across commits, but actions/cache also skips SAVING once a run
-          # gets an exact hit on the primary key — so a permanently-stable
+          # gets an exact hit on the primary key - so a permanently-stable
           # key still stops accumulating after its very first save. A
           # per-run key + prefix restore-keys avoids both failure modes:
           # every run saves under a fresh key (so saving never gets
