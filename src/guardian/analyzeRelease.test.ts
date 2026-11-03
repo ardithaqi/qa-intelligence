@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { DiffResult, Failure } from "../lib/types";
 import { analyzeRelease } from "./analyzeRelease";
 import { decideRelease } from "./decision";
-import { formatReleaseComment, GUARDIAN_COMMENT_HEADER } from "./format";
+import { formatReleaseComment, GUARDIAN_COMMENT_HEADER, shortReason } from "./format";
 import { groupFailures } from "./group";
 import { riskLevel, scoreRisk } from "./risk";
 import type { ClassifiedFailure, FailureCategory } from "./types";
@@ -206,11 +206,12 @@ describe("analyzeRelease", () => {
 
         const md = formatReleaseComment(report, undefined, { commit: "abcdef1234" });
         assert.ok(md.startsWith(GUARDIAN_COMMENT_HEADER));
-        assert.match(md, /⛔ BLOCK/);
-        assert.match(md, /Tests analyzed: 248/);
-        assert.match(md, /Real regressions: 3/);
-        assert.match(md, /Probable root cause:\*\* `src\/auth\/session\.ts`/);
-        assert.match(md, /Likely introduced by:\*\* commit `82fa7d0` — Persist session token/);
+        assert.match(md, /### ⛔ BLOCK · CRITICAL risk/);
+        assert.match(md, /248 tests · 5 new failures · 1 still failing from main · 1 fixed/);
+        // The three session failures are one problem line, not three.
+        assert.match(md, /<summary>🔴 <b>Regression<\/b> · 3 tests · expected \/dashboard, got \/login · likely cause <code>src\/auth\/session\.ts<\/code><\/summary>/);
+        assert.match(md, /commit `82fa7d0` "Persist session token in storage"/);
+        assert.equal((md.match(/<summary>/g) ?? []).length, 4, "3 problems + More");
     });
 
     it("flaky + infra only → SAFE TO MERGE, LOW risk", () => {
@@ -267,8 +268,48 @@ describe("formatReleaseComment", () => {
 
     it("renders a clean SAFE summary", () => {
         const md = formatReleaseComment(analyzeRelease(diff()), undefined, { commit: "" });
-        assert.match(md, /✅ SAFE TO MERGE/);
+        assert.match(md, /✅ SAFE TO MERGE · LOW risk \(0\/100\)/);
         assert.match(md, /No new failures/);
-        assert.doesNotMatch(md, /Classification/);
+        assert.equal((md.match(/<summary>/g) ?? []).length, 1, "only the More section");
     });
+
+    it("stays short with many problems: 10 lines, the rest collapsed", () => {
+        const many = Array.from({ length: 15 }, (_, i) =>
+            f(`tests/area${i}.spec.ts`, { errorMessage: `Error: distinct problem ${"abcdefghijklmno"[i]}` })
+        );
+        const md = formatReleaseComment(analyzeRelease(diff({ newFailures: many })), undefined, { commit: "" });
+        const topLevel = md.split("<details><summary>…and 5 more problems</summary>")[0];
+        assert.equal((topLevel.match(/<details>/g) ?? []).length, 10);
+        assert.match(md, /…and 5 more problems/);
+        assert.ok(md.split("\n").filter((l) => l.startsWith("<details>")).length >= 15);
+    });
+
+    it("links tests and causes to the exact lines on GitHub", () => {
+        const report = analyzeRelease(diff({ newFailures: [f("tests/checkout.spec.ts", { line: 12, title: "cart total" })] }), {
+            changes: { files: [{ path: "src/checkout/cart.ts", commit: "abc1234ffff" }] },
+        });
+        const md = formatReleaseComment(report, undefined, {
+            commit: "",
+            links: { server: "https://github.com", repo: "acme/shop", sha: "deadbeef", testPathPrefix: "playwright/" },
+            runUrl: "https://github.com/acme/shop/actions/runs/1",
+        });
+        assert.match(md, /\(https:\/\/github\.com\/acme\/shop\/blob\/deadbeef\/playwright\/tests\/checkout\.spec\.ts#L12\)/);
+        assert.match(md, /\(https:\/\/github\.com\/acme\/shop\/blob\/deadbeef\/src\/checkout\/cart\.ts\)/);
+        assert.match(md, /\[CI run\]\(https:\/\/github\.com\/acme\/shop\/actions\/runs\/1\)/);
+    });
+});
+
+describe("shortReason", () => {
+    const cases: [Partial<Failure>, string][] = [
+        [{ errorMessage: 'Timed out 300ms waiting for expect(locator).toHaveText(expected)\nExpected: "30"\nReceived: "20"' }, 'expected "30", got "20"'],
+        [{ errorMessage: "Expected: visible\nReceived: <element(s) not found>" }, "element not found"],
+        [{ errorMessage: "page.goto: net::ERR_CONNECTION_REFUSED at http://x" }, "can't reach server (ERR_CONNECTION_REFUSED)"],
+        [{ errorMessage: "locator.click: Error: strict mode violation: getByRole('button') resolved to 2 elements:" }, "locator matches 2 elements"],
+        [{ errorMessage: "Test timeout of 30000ms exceeded." }, "timed out after 30s"],
+        [{ errorMessage: "Error: something odd" }, "something odd"],
+        [{ is_flaky_suspected: true }, "failed, then passed on retry"],
+    ];
+    for (const [over, expected] of cases) {
+        it(expected, () => assert.equal(shortReason(f("tests/x.spec.ts", over)), expected));
+    }
 });

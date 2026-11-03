@@ -10,8 +10,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function causeSuffix(group: FailureGroup | undefined): string {
     if (!group || group.rootCauseKind !== "changed_file") return "";
-    const commit = group.commit ? `, commit ${group.commit.slice(0, 7)}` : "";
-    return ` Most likely source: ${group.rootCause} (${group.confidence}% confidence${commit}).`;
+    const commit = group.commit ? ` (commit ${group.commit.slice(0, 7)})` : "";
+    return ` Likely cause: ${group.rootCause}${commit}.`;
 }
 
 export function decideRelease(input: {
@@ -29,13 +29,11 @@ export function decideRelease(input: {
     const highRisk = input.risk.level === "HIGH" || input.risk.level === "CRITICAL";
 
     if (regressions.length > 0 && (confident.length > 0 || highRisk)) {
-        const areas = [...new Set(regressions.map((f) => f.area))];
+        const all = [...new Set(regressions.map((f) => f.area))];
+        const areas = all.length > 3 ? [...all.slice(0, 3), `${all.length - 3} more`] : all;
         return {
             decision: "BLOCK",
-            reason:
-                `${plural(regressions.length, "new regression")} affecting ${areas.join(", ")}` +
-                ` (risk ${input.risk.level}, ${input.risk.score}/100).` +
-                causeSuffix(primary),
+            reason: `${plural(regressions.length, "new regression")} in ${areas.join(", ")}.` + causeSuffix(primary),
         };
     }
 
@@ -47,12 +45,12 @@ export function decideRelease(input: {
     const infra = of("infrastructure").length;
     const total = input.testsAnalyzed ?? 0;
     if (infra >= INFRA_COUNT_LIMIT || (total > 0 && infra / total > INFRA_SHARE_LIMIT)) {
-        concerns.push(`${plural(infra, "infrastructure failure")} — too much of the suite didn't run to trust the result; rerun`);
+        concerns.push(`${plural(infra, "test")} couldn't reach the environment — rerun before trusting this result`);
     }
     if (concerns.length === 0 && input.risk.score >= 30) concerns.push(`risk is ${input.risk.level}`);
 
     if (concerns.length > 0) {
-        return { decision: "REVIEW REQUIRED", reason: `Needs a human look: ${concerns.join("; ")}.` };
+        return { decision: "REVIEW REQUIRED", reason: `Needs a look: ${concerns.join("; ")}.` };
     }
 
     if (fresh.length === 0) {
@@ -65,6 +63,6 @@ export function decideRelease(input: {
     ].filter(Boolean);
     return {
         decision: "SAFE TO MERGE",
-        reason: `Only known-noise failures (${parts.join(", ")}); no regressions introduced by this PR.`,
+        reason: `No regressions. Only ${parts.join(" and ")}, which don't block.`,
     };
 }

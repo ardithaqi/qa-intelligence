@@ -82,7 +82,8 @@ describe("ai-release-guardian analyze (CLI)", () => {
             assert.ok(saved.diff.newFailures.length === 1);
 
             const md = fs.readFileSync(path.join(root, "release-guardian.md"), "utf8");
-            assert.match(md, /Likely introduced by:\*\* commit `[0-9a-f]{7}` — rework cart totals/);
+            assert.match(md, /likely cause <code>src\/checkout\/cart\.ts<\/code>/);
+            assert.match(md, /commit `[0-9a-f]{7}` "rework cart totals"/);
 
             assert.equal(run(root, "analyze", "--base", "main", "--fail-on", "never").status, 0);
         });
@@ -112,3 +113,4 @@ describe("ai-release-guardian analyze (CLI)", () => {
         });
     });
 });
+

@@ -1,8 +1,11 @@
-import { formatDiffSections } from "../lib/format";
-import type { DiffResult } from "../lib/types";
-import type { ClassifiedFailure, FailureGroup, ReleaseDecision, ReleaseReport } from "./types";
+import { INFRASTRUCTURE_PATTERN, stripAnsi } from "../lib/failureSignals";
+import type { DiffResult, Failure } from "../lib/types";
+import type { FailureCategory, FailureGroup, ReleaseDecision, ReleaseReport } from "./types";
 
 export const GUARDIAN_COMMENT_HEADER = "## AI Release Guardian";
+
+/** Problems listed one line each; the rest go behind "and N more". */
+export const MAX_PROBLEM_LINES = 10;
 
 const DECISION_ICON: Record<ReleaseDecision, string> = {
     "SAFE TO MERGE": "✅",
@@ -10,135 +13,233 @@ const DECISION_ICON: Record<ReleaseDecision, string> = {
     BLOCK: "⛔",
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
-    regression: "regression",
-    flaky: "flaky",
-    infrastructure: "infrastructure",
-    test_issue: "test issue",
-    unknown: "unknown",
+const CATEGORY: Record<FailureCategory, { icon: string; label: string }> = {
+    regression: { icon: "🔴", label: "Regression" },
+    test_issue: { icon: "🧪", label: "Broken test" },
+    unknown: { icon: "❓", label: "Unclear" },
+    infrastructure: { icon: "🌐", label: "Infrastructure" },
+    flaky: { icon: "🔁", label: "Flaky" },
 };
 
-/** Inline code that can't be broken out of by backticks in user-controlled text. */
-function code(text: string): string {
-    return `\`${text.replace(/`/g, "'").replace(/\n/g, " ")}\``;
+export interface CommentOptions {
+    /** Commit sha shown in the header; defaults to $GITHUB_SHA. Empty string hides it. */
+    commit?: string;
+    /** Makes file paths clickable: https://github.com/<repo>/blob/<sha>/<path>#L<line>. */
+    links?: { server: string; repo: string; sha: string; testPathPrefix?: string };
+    /** Link to the CI run (artifacts, traces, full logs). */
+    runUrl?: string;
 }
 
-/** Plain text safe for markdown: neutralize HTML and mention/link syntax. */
-function plain(text: string): string {
+// --- escaping -----------------------------------------------------------------
+
+/** For raw HTML contexts (<summary>, <code>). Also defuses @mentions. */
+function html(text: string): string {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/@(\w)/g, "@​$1");
+}
+
+/** For markdown text. */
+function md(text: string): string {
     return text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/@(\w)/g, "@​$1");
 }
 
-function shortSha(sha: string): string {
-    return sha.slice(0, 7);
+function codeMd(text: string): string {
+    return `\`${text.replace(/`/g, "'").replace(/\n/g, " ")}\``;
 }
 
-function failureLine(item: ClassifiedFailure): string {
-    const f = item.failure;
-    const title = f.title ? ` — ${plain(f.title)}` : "";
-    const browser = f.project ? ` [${plain(f.project)}]` : "";
-    return `- ${code(`${f.file}:${f.line}`)}${title}${browser} · ${CATEGORY_LABEL[item.classification.category]} ${item.classification.confidence}%`;
+function clip(text: string, max: number): string {
+    return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-function firstLine(text: string | undefined): string {
-    return (text ?? "").split("\n").map((l) => l.trim()).find(Boolean)?.slice(0, 200) ?? "";
-}
+const shortSha = (sha: string) => sha.slice(0, 7);
+const basename = (file: string) => file.split("/").pop() ?? file;
 
-function formatGroup(group: FailureGroup): string {
-    const n = group.failures.length;
-    const shared = group.rootCauseKind !== "single";
-    // A lone failure has no shared cause to be confident about, unless a changed file is implicated.
-    const showConfidence = group.rootCauseKind === "changed_file" || n > 1;
-    const confidence = showConfidence ? ` · ${group.confidence}% confidence` : "";
-    let out = `#### ${group.id} · ${CATEGORY_LABEL[group.category]} · ${n} test${n === 1 ? "" : "s"}${confidence}\n\n`;
+// --- "why" in a few words ------------------------------------------------------
 
-    if (group.rootCauseKind === "changed_file") {
-        out += `Probable cause: ${code(group.rootCause)}${group.commit ? ` (commit ${code(shortSha(group.commit))})` : ""}\n\n`;
-        out += `${plain(group.reason)}\n\n`;
-    } else if (shared && n > 1) {
-        out += `Shared error: ${code(firstLine(group.failures[0].failure.errorMessage) || group.rootCause)}\n\n`;
-    } else {
-        const error = firstLine(group.failures[0].failure.errorMessage);
-        if (error) out += `Error: ${code(error)}\n\n`;
+/** One short human sentence for why a test failed, derived from its error output. */
+export function shortReason(failure: Failure): string {
+    if (failure.is_flaky_suspected) return "failed, then passed on retry";
+
+    const message = stripAnsi(failure.errorMessage ?? "");
+    if (!message.trim()) return failure.failure_type.replace(/_/g, " ");
+
+    const mismatch = message.match(/Expected(?: string| pattern| value)?:\s*(.+)\n\s*Received(?: string| value)?:\s*(.+)/);
+    if (mismatch) {
+        const expected = mismatch[1].trim();
+        const received = mismatch[2].trim();
+        if (/element\(s\) not found/.test(received)) return "element not found";
+        return `expected ${clip(expected, 40)}, got ${clip(received, 40)}`;
     }
+
+    const net = message.match(/net::(ERR_[A-Z_]+)|\b(ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT)\b/);
+    if (net && INFRASTRUCTURE_PATTERN.test(message)) return `can't reach server (${net[1] ?? net[2]})`;
+
+    const strict = message.match(/strict mode violation.*resolved to (\d+) elements/);
+    if (strict) return `locator matches ${strict[1]} elements`;
+
+    const testTimeout = message.match(/Test timeout of (\d+)ms exceeded/);
+    if (testTimeout) return `timed out after ${Number(testTimeout[1]) / 1000}s`;
+
+    const first = message.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+    return clip(first.replace(/^Error:\s*/, "").replace(/^[\w.]+:\s*(?:Error:\s*)?/, ""), 80);
+}
+
+// --- links ---------------------------------------------------------------------
+
+function blobUrl(options: CommentOptions, repoPath: string, line?: number): string | undefined {
+    const l = options.links;
+    if (!l) return undefined;
+    return `${l.server}/${l.repo}/blob/${l.sha}/${repoPath}${line ? `#L${line}` : ""}`;
+}
+
+function testLink(options: CommentOptions, f: Failure, text = `${f.file}:${f.line}`): string {
+    const url = blobUrl(options, `${options.links?.testPathPrefix ?? ""}${f.file}`, f.line);
+    return url ? `[${codeMd(text)}](${url})` : codeMd(text);
+}
+
+function fileLink(options: CommentOptions, repoPath: string): string {
+    const url = blobUrl(options, repoPath);
+    return url ? `[${codeMd(repoPath)}](${url})` : codeMd(repoPath);
+}
+
+// --- problem lines -------------------------------------------------------------
+
+function causeOf(group: FailureGroup): string | undefined {
+    return group.rootCauseKind === "changed_file" ? group.rootCause : undefined;
+}
+
+function problemSummary(group: FailureGroup): string {
+    const { icon, label } = CATEGORY[group.category];
+    const first = group.failures[0].failure;
+    const where = group.failures.length === 1
+        ? `<code>${html(`${basename(first.file)}:${first.line}`)}</code>`
+        : `${group.failures.length} tests`;
+    const cause = causeOf(group);
+    const parts = [
+        `${icon} <b>${label}</b>`,
+        where,
+        html(shortReason(first)),
+        cause ? `likely cause <code>${html(cause)}</code>` : "",
+    ].filter(Boolean);
+    return parts.join(" · ");
+}
+
+function problemDetails(group: FailureGroup, options: CommentOptions): string {
+    const lines: string[] = [];
 
     for (const item of group.failures) {
-        out += `${failureLine(item)}\n`;
-        for (const reason of item.classification.reasons) out += `  - ${plain(reason)}\n`;
+        const f = item.failure;
+        const extras = [f.title ? md(f.title) : "", f.project ? md(f.project) : ""].filter(Boolean).join(" · ");
+        lines.push(`- ${testLink(options, f)}${extras ? ` — ${extras}` : ""}`);
     }
-    return out + "\n";
+
+    const cause = causeOf(group);
+    if (cause) {
+        const attr = group.failures.find((f) => f.attribution?.path === cause)?.attribution;
+        const commit = group.commit
+            ? ` · commit ${codeMd(shortSha(group.commit))}${attr?.commitSubject ? ` "${md(clip(attr.commitSubject, 60))}"` : ""}`
+            : "";
+        lines.push("", `**Likely cause:** ${fileLink(options, cause)} (${group.confidence}%)${commit}`);
+        if (attr) lines.push(`<sub>${md(attr.evidence)}</sub>`);
+    }
+
+    // One line of evidence: the reason this was classified the way it was.
+    const c = group.failures[0].classification;
+    const why = c.reasons.filter((r) => !r.startsWith("Likely related change")).join(" ");
+    lines.push("", `**Why ${CATEGORY[group.category].label.toLowerCase()}:** ${md(why)} (${c.confidence}%)`);
+
+    const error = stripAnsi(group.failures[0].failure.errorMessage ?? "").trim();
+    if (error) {
+        const lines = error.split("\n").filter((l) => l.trim());
+        const callLog = lines.findIndex((l) => /^\s*Call log:/.test(l));
+        const snippet = (callLog >= 0 ? lines.slice(0, callLog) : lines).slice(0, 6).join("\n");
+        lines.push("", "```", snippet.replace(/```/g, "'''"), "```");
+    }
+
+    return lines.join("\n");
 }
 
-/** Full PR comment / step-summary markdown for a release report. */
+function problemBlock(group: FailureGroup, options: CommentOptions): string {
+    return `<details><summary>${problemSummary(group)}</summary>\n\n${problemDetails(group, options)}\n\n</details>\n`;
+}
+
+// --- comment -------------------------------------------------------------------
+
+function countsLine(report: ReleaseReport, options: CommentOptions): string {
+    const c = report.counts;
+    const fresh = c.regression + c.flaky + c.infrastructure + c.test_issue + c.unknown;
+    const parts = [
+        report.testsAnalyzed != null ? `${report.testsAnalyzed} tests` : "",
+        fresh ? `${fresh} new failure${fresh === 1 ? "" : "s"}` : "no new failures",
+        report.preExistingCount ? `${report.preExistingCount} still failing from main` : "",
+        report.fixedCount ? `${report.fixedCount} fixed` : "",
+        options.runUrl ? `[CI run](${options.runUrl})` : "",
+    ].filter(Boolean);
+    return parts.join(" · ");
+}
+
+function moreSection(report: ReleaseReport, diff: DiffResult | undefined, options: CommentOptions): string {
+    const out: string[] = [];
+
+    const existing = report.failures.filter((f) => f.lifecycle === "existing");
+    if (existing.length) {
+        out.push(`**Still failing from main** (not caused by this PR)`);
+        for (const e of existing) out.push(`- ${testLink(options, e.failure)} · ${md(shortReason(e.failure))}`);
+        out.push("");
+    }
+
+    const fixed = diff?.fixedFailures ?? [];
+    if (fixed.length) {
+        out.push("**Fixed by this PR**");
+        for (const f of fixed) out.push(`- ${testLink(options, f)}`);
+        out.push("");
+    }
+
+    out.push(`**Risk ${report.risk.score}/100:** ${report.risk.reasons.map(md).join(", ")}`);
+    out.push("<sub>0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL</sub>");
+
+    if (report.warnings.length) {
+        out.push("", ...report.warnings.map((w) => `<sub>⚠ ${md(w)}</sub>`));
+    }
+
+    const label = [
+        existing.length ? `still failing (${existing.length})` : "",
+        fixed.length ? `fixed (${fixed.length})` : "",
+        "score",
+    ].filter(Boolean).join(", ");
+
+    return `<details><summary>More: ${label}</summary>\n\n${out.join("\n")}\n\n</details>\n`;
+}
+
+/** Compact PR comment: decision, one line, one collapsible line per problem. */
 export function formatReleaseComment(
     report: ReleaseReport,
     diff?: DiffResult,
-    options: { commit?: string } = {}
+    options: CommentOptions = {}
 ): string {
-    const commit = options.commit ?? process.env.GITHUB_SHA;
-    const c = report.counts;
-    const newCount = c.regression + c.flaky + c.infrastructure + c.test_issue + c.unknown;
+    const commit = options.commit ?? process.env.GITHUB_SHA ?? "";
+    const icon = DECISION_ICON[report.decision];
 
     let body = `${GUARDIAN_COMMENT_HEADER}\n\n`;
-    body += `### ${DECISION_ICON[report.decision]} ${report.decision}\n\n`;
-    body += `${plain(report.decisionReason)}\n\n`;
+    body += `### ${icon} ${report.decision} · ${report.risk.level} risk (${report.risk.score}/100)\n\n`;
+    body += `${md(report.decisionReason)}\n\n`;
+    body += `<sub>${countsLine(report, options)}${commit ? ` · ${codeMd(shortSha(commit))}` : ""}</sub>\n\n`;
 
-    body += `**Release risk: ${report.risk.level}** · Score: ${report.risk.score}/100\n\n`;
+    const shown = report.groups.slice(0, MAX_PROBLEM_LINES);
+    for (const group of shown) body += problemBlock(group, options);
 
-    const stats = [
-        report.testsAnalyzed != null ? `Tests analyzed: ${report.testsAnalyzed}` : "",
-        `Failures: ${report.failureCount}`,
-        `New: ${newCount}`,
-        report.preExistingCount ? `Pre-existing: ${report.preExistingCount}` : "",
-        report.fixedCount ? `Fixed: ${report.fixedCount}` : "",
-        commit ? `Commit: ${code(shortSha(commit))}` : "",
-    ].filter(Boolean);
-    body += `${stats.join(" · ")}\n\n`;
-
-    if (newCount > 0) {
-        body += "**Classification (new failures)**\n\n";
-        body += `- Real regressions: ${c.regression}\n`;
-        body += `- Flaky: ${c.flaky}\n`;
-        body += `- Infrastructure: ${c.infrastructure}\n`;
-        body += `- Test issues: ${c.test_issue}\n`;
-        if (c.unknown) body += `- Unknown: ${c.unknown}\n`;
-        body += "\n";
+    const hidden = report.groups.slice(MAX_PROBLEM_LINES);
+    if (hidden.length) {
+        body += `<details><summary>…and ${hidden.length} more problem${hidden.length === 1 ? "" : "s"}</summary>\n\n`;
+        for (const group of hidden) body += problemBlock(group, options);
+        body += "\n</details>\n";
     }
 
-    // Only name a root cause when a changed file is actually implicated.
-    const primary = report.primaryGroup;
-    if (primary?.rootCauseKind === "changed_file") {
-        body += `**Probable root cause:** ${code(primary.rootCause)} (${primary.confidence}% confidence)\n\n`;
-        if (primary.commit) {
-            const subject = primary.failures.find((f) => f.attribution?.commitSubject)?.attribution?.commitSubject;
-            body += `**Likely introduced by:** commit ${code(shortSha(primary.commit))}${subject ? ` — ${plain(subject)}` : ""}\n\n`;
-        }
-    }
-
-    if (report.affectedAreas.length > 0) {
-        body += `**Affected areas:** ${report.affectedAreas.map(plain).join(", ")}\n\n`;
-    }
-
-    if (report.groups.length > 0) {
-        body += "### Root-cause groups\n\n";
-        for (const group of report.groups) body += formatGroup(group);
-    }
-
-    body += "<details><summary>How the risk score was calculated</summary>\n\n";
-    for (const reason of report.risk.reasons) body += `- ${plain(reason)}\n`;
-    body += "\nLevels: 0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL. Pre-existing failures don't add risk.\n\n</details>\n\n";
-
-    if (report.warnings.length > 0) {
-        body += "**Evidence gaps**\n\n";
-        for (const w of report.warnings) body += `- ${plain(w)}\n`;
-        body += "\n";
-    }
-
-    if (diff) {
-        const sections = formatDiffSections(diff, { gateNote: false });
-        if (sections.trim()) {
-            body += `<details><summary>Failure diff vs base branch</summary>\n\n${sections}</details>\n`;
-        }
-    }
-
+    if (shown.length) body += "\n";
+    body += moreSection(report, diff, options);
     return body;
 }
