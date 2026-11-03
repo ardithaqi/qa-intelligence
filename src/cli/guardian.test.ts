@@ -41,7 +41,7 @@ function run(root: string, ...args: string[]) {
     return spawnSync(TSX, [CLI, ...args], {
         cwd: root,
         encoding: "utf8",
-        env: { ...process.env, GITHUB_SHA: "", GITHUB_BASE_REF: "", RELEASE_GUARDIAN_BASE: "", RELEASE_GUARDIAN_FAIL_ON: "" },
+        env: { ...process.env, GITHUB_SHA: "", GITHUB_BASE_REF: "", RELEASE_GUARDIAN_BASE: "", RELEASE_GUARDIAN_FAIL_ON: "", RELEASE_GUARDIAN_AI: "off", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "", AI_API_KEY: "" },
     });
 }
 

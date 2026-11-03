@@ -85,3 +85,14 @@ export type {
     RiskScore,
     RunSummary,
 } from "./guardian/types";
+export {
+    buildRootCausePrompt,
+    explainRootCauses,
+    failureRef,
+    filesForAi,
+    parseRootCauseResponse,
+    AI_ATTRIBUTION_CAP,
+} from "./guardian/aiRootCause";
+export { collectPatches } from "./guardian/gitContext";
+export { verdictAlert } from "./guardian/format";
+export type { AiCause } from "./guardian/types";

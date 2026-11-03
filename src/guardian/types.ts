@@ -29,8 +29,8 @@ export interface ChangeContext {
 
 export interface Attribution {
     path: string;
-    /** How the link was found: the failing test file itself, the path in error output, or naming overlap. */
-    kind: "test_file" | "error_output" | "naming";
+    /** How the link was found: the failing test file itself, the path in error output, naming overlap, or AI reading the diff. */
+    kind: "test_file" | "error_output" | "naming" | "ai";
     commit?: string;
     commitSubject?: string;
     /** 0–100. Heuristic; never treated as proof. */
@@ -45,8 +45,22 @@ export interface Classification {
     reasons: string[];
 }
 
+/** Root cause from the AI reading the failing tests together with the PR diff. */
+export interface AiCause {
+    /** Changed file the AI blames, or null when it can't tell from the diff. */
+    path: string | null;
+    /** What changed and why it breaks the test, one or two sentences. */
+    summary: string;
+    /** Suggested fix, one sentence. */
+    fix?: string;
+    /** 0–100 as reported by the AI; capped when used as attribution. */
+    confidence: number;
+}
+
 export interface ClassifiedFailure {
     failure: Failure;
+    /** Set when the PR-level AI root-cause step ran and covered this failure. */
+    aiCause?: AiCause;
     lifecycle: FailureLifecycle;
     classification: Classification;
     area: string;
@@ -109,6 +123,8 @@ export interface ReleaseReport {
     groups: FailureGroup[];
     failures: ClassifiedFailure[];
     warnings: string[];
+    /** Present when the AI root-cause step ran. */
+    ai?: { model: string; provider: string; costUsd?: number };
 }
 
 export interface GuardianConfig {

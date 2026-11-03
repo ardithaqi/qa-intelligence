@@ -94,6 +94,17 @@ function metaContext(meta: MetaJson | null): Partial<Failure> {
     return context;
 }
 
+/**
+ * The per-failure prompt asks for "Root cause:" followed by "Line 1/2/3".
+ * Line 2 ("what was actually observed") is the useful part; 1 restates the
+ * assertion and 3 restates the classification.
+ */
+export function extractAiNote(content: string): string | undefined {
+    const m = content.match(/Root cause:\s*[\s\S]*?Line 2:\s*(.+)/);
+    const note = m?.[1].trim();
+    return note ? note.slice(0, 280) : undefined;
+}
+
 function resolveFailure(aiTxtPath: string): Failure | null {
     const content = fs.readFileSync(aiTxtPath, "utf8");
     const ai = extractTrailingJson(content);
@@ -114,6 +125,7 @@ function resolveFailure(aiTxtPath: string): Failure | null {
             ai.is_flaky_suspected ?? meta?.is_flaky_suspected ?? false,
         ...metaContext(meta),
         source: "ai",
+        ...(extractAiNote(content) ? { aiNote: extractAiNote(content) } : {}),
     };
 }
 

@@ -227,6 +227,13 @@ jobs:
         if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         # --fail-on review: fail the job on BLOCK or REVIEW REQUIRED (recommended).
         #           block:  fail only on BLOCK.   never: report only.
+        # With an AI key set, one extra call reads the failing tests + the PR diff and names the
+        # change that broke them (--ai auto). Without a key this step is fully deterministic.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
         run: |
           npx ai-release-guardian analyze \
             --current artifacts \

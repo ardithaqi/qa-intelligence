@@ -52,3 +52,40 @@ export function collectChanges(base: string | undefined, head = "HEAD", cwd = pr
         };
     }
 }
+
+export const MAX_PATCH_CHARS = 3000;
+export const MAX_TOTAL_PATCH_CHARS = 20000;
+
+/**
+ * Unified diff (3 lines of context) per file for `base...head`, each capped at
+ * MAX_PATCH_CHARS and the whole set at MAX_TOTAL_PATCH_CHARS so an AI prompt
+ * stays small. Files that fail to diff are skipped. Never throws.
+ */
+export function collectPatches(
+    base: string | undefined,
+    files: string[],
+    head = "HEAD",
+    cwd = process.cwd()
+): Record<string, string> {
+    const patches: Record<string, string> = {};
+    if (!base) return patches;
+
+    let total = 0;
+    for (const file of files) {
+        if (total >= MAX_TOTAL_PATCH_CHARS) break;
+        try {
+            // Paths from `git diff --name-only` are repo-root relative; ":(top)" keeps them so from a subfolder.
+            let patch = git(["diff", "--no-color", "-U3", `${base}...${head}`, "--", `:(top)${file}`], cwd)
+                .split("\n")
+                .filter((l) => !/^(diff --git|index |--- |\+\+\+ )/.test(l))
+                .join("\n")
+                .trim();
+            if (!patch) continue;
+            const room = Math.min(MAX_PATCH_CHARS, MAX_TOTAL_PATCH_CHARS - total);
+            if (patch.length > room) patch = `${patch.slice(0, room)}\n… (diff truncated)`;
+            patches[file] = patch;
+            total += patch.length;
+        } catch { }
+    }
+    return patches;
+}

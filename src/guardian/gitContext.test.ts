@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { collectChanges } from "./gitContext";
+import { collectChanges, collectPatches } from "./gitContext";
 
 function repo(fn: (root: string, git: (...args: string[]) => string) => void) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "guardian-git-"));
@@ -79,5 +79,29 @@ describe("collectChanges", () => {
         repo((root) => {
             assert.match(collectChanges("does-not-exist", "HEAD", root).warning ?? "", /fetch-depth/);
         });
+    });
+});
+
+describe("collectPatches", () => {
+    it("returns each file's diff without git headers, even from a subfolder", () => {
+        repo((root, git) => {
+            write(root, "src/lib/money.ts", "export const round = (n: number) => Math.round(n);\n");
+            fs.mkdirSync(path.join(root, "playwright"));
+            write(root, "playwright/x.txt", "x");
+            git("add", ".");
+            git("commit", "-qm", "base");
+            git("checkout", "-qb", "feature");
+            write(root, "src/lib/money.ts", "export const round = (n: number) => Math.floor(n);\n");
+            git("commit", "-qam", "floor");
+
+            const patches = collectPatches("main", ["src/lib/money.ts"], "HEAD", path.join(root, "playwright"));
+            assert.match(patches["src/lib/money.ts"], /-export const round = \(n: number\) => Math\.round\(n\);/);
+            assert.match(patches["src/lib/money.ts"], /\+export const round = \(n: number\) => Math\.floor\(n\);/);
+            assert.doesNotMatch(patches["src/lib/money.ts"], /diff --git|\+\+\+ /);
+        });
+    });
+
+    it("returns nothing without a base", () => {
+        assert.deepEqual(collectPatches(undefined, ["a.ts"]), {});
     });
 });

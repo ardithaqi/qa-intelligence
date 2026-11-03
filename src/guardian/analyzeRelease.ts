@@ -1,14 +1,18 @@
 import { computeFlakyWatchlist } from "../lib/flakyWatchlist";
 import { normalizeTestPath } from "../lib/failureIdentity";
 import type { DiffResult, Failure, FlakyWatchlistEntry, History } from "../lib/types";
-import { attributeFailure, detectArea } from "./attribution";
+import { AI_ATTRIBUTION_CAP, AI_MIN_CONFIDENCE, failureRef } from "./aiRootCause";
+import { attributeFailure, detectArea, isSameTestFile } from "./attribution";
 import { classifyFailure } from "./classify";
 import { DEFAULT_CONFIG } from "./config";
 import { decideRelease } from "./decision";
 import { groupFailures } from "./group";
 import { scoreRisk } from "./risk";
 import type {
+    AiCause,
+    Attribution,
     CategoryCounts,
+    ChangedFile,
     ChangeContext,
     ClassifiedFailure,
     FailureLifecycle,
@@ -25,6 +29,37 @@ export interface AnalyzeReleaseOptions {
     /** Failure history cache; used for intermittency evidence. */
     history?: History;
     config?: GuardianConfig;
+    /** PR-level AI root causes keyed by failureRef (from explainRootCauses). */
+    aiCauses?: Record<string, AiCause>;
+    /** Shown in the report when the AI step ran. */
+    ai?: ReleaseReport["ai"];
+}
+
+/**
+ * The AI's file pick becomes attribution only when confident, capped at
+ * AI_ATTRIBUTION_CAP. If it agrees with the naming heuristic, the two
+ * corroborate each other (+10, max 90).
+ */
+function mergeAttribution(
+    failure: Failure,
+    heuristic: Attribution | undefined,
+    cause: AiCause | undefined,
+    changes: ChangedFile[]
+): Attribution | undefined {
+    if (!cause?.path || cause.confidence < AI_MIN_CONFIDENCE) return heuristic;
+    const change = changes.find((c) => c.path === cause.path);
+    const aiConfidence = Math.min(AI_ATTRIBUTION_CAP, cause.confidence);
+    const agrees = heuristic?.path === cause.path;
+    return {
+        path: cause.path,
+        kind: isSameTestFile(cause.path, failure.file) ? "test_file" : "ai",
+        ...(change?.commit ? { commit: change.commit } : {}),
+        ...(change?.commitSubject ? { commitSubject: change.commitSubject } : {}),
+        confidence: agrees ? Math.min(90, Math.max(aiConfidence, heuristic!.confidence) + 10) : aiConfidence,
+        evidence: agrees
+            ? `AI read the diff and agrees: ${cause.summary}`
+            : `AI read the diff: ${cause.summary}`,
+    };
 }
 
 const ACTIONABLE = new Set(["regression", "unknown", "test_issue"]);
@@ -48,7 +83,9 @@ export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions 
     const critical = new Set(config.criticalAreas);
 
     const classify = (failure: Failure, lifecycle: FailureLifecycle): ClassifiedFailure => {
-        const attribution = lifecycle === "new" ? attributeFailure(failure, changes, config) : undefined;
+        const aiCause = lifecycle === "new" ? options.aiCauses?.[failureRef(failure)] : undefined;
+        const heuristic = lifecycle === "new" ? attributeFailure(failure, changes, config) : undefined;
+        const attribution = mergeAttribution(failure, heuristic, aiCause, changes);
         const area = detectArea(failure, config);
         const classification = classifyFailure({
             failure,
@@ -63,6 +100,7 @@ export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions 
             area,
             critical: critical.has(area),
             ...(attribution ? { attribution } : {}),
+            ...(aiCause ? { aiCause } : {}),
         };
     };
 
@@ -104,5 +142,6 @@ export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions 
         groups,
         failures,
         warnings,
+        ...(options.ai ? { ai: options.ai } : {}),
     };
 }

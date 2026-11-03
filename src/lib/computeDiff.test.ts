@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { computeDiff } from "./computeDiff";
+import { computeDiff, extractAiNote } from "./computeDiff";
 import { writeFailureArtifact } from "../test/writeFailureArtifact";
 
 function withTempDirs(fn: (baseline: string, current: string) => void) {
@@ -256,5 +256,16 @@ describe("computeDiff", () => {
             assert.equal(diff.newFailures[0].failure_type, "selector_not_found");
             assert.equal(diff.newFailures[0].source, "ai");
         });
+    });
+});
+
+describe("extractAiNote", () => {
+    it("takes the observed line from the AI's root cause section", () => {
+        const content = "File: tests/a.spec.ts\n\nRoot cause:\nLine 1: compares #total to 30.\nLine 2: The element stayed \"20\" for the whole timeout.\nLine 3: assertion_mismatch.\n\n{}";
+        assert.equal(extractAiNote(content), 'The element stayed "20" for the whole timeout.');
+    });
+
+    it("returns nothing when the section is missing", () => {
+        assert.equal(extractAiNote("{\"failure_type\":\"timeout\"}"), undefined);
     });
 });

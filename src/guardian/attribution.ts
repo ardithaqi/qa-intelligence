@@ -13,8 +13,8 @@ const GENERIC_TOKENS = new Set([
     "model", "models", "types", "type", "new", "user", "users", "click", "button", "works",
 ]);
 
-const IGNORED_CHANGE = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|CHANGELOG\.md|README\.md)$|\.(md|txt|png|jpe?g|svg|gif|lock)$|^\.github\/|^docs\//i;
-const TEST_FILE = /(^|\/)(tests?|e2e|__tests__)\/|\.(spec|test)\.[cm]?[jt]sx?$/i;
+export const IGNORED_CHANGE = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|CHANGELOG\.md|README\.md)$|\.(md|txt|png|jpe?g|svg|gif|lock)$|^\.github\/|^docs\//i;
+export const TEST_FILE = /(^|\/)(tests?|e2e|__tests__)\/|\.(spec|test)\.[cm]?[jt]sx?$/i;
 
 /** Splits paths, titles and URLs into lowercase word tokens (camelCase aware). */
 export function tokenize(text: string): string[] {
@@ -75,7 +75,7 @@ export function detectArea(failure: Failure, config: GuardianConfig): string {
     return specName;
 }
 
-function isSameTestFile(changedPath: string, failureFile: string): boolean {
+export function isSameTestFile(changedPath: string, failureFile: string): boolean {
     const changed = changedPath.replace(/\\/g, "/");
     return changed === failureFile || changed.endsWith(`/${failureFile}`);
 }

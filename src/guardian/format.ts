@@ -138,7 +138,18 @@ function problemDetails(group: FailureGroup, options: CommentOptions): string {
             ? ` · commit ${codeMd(shortSha(group.commit))}${attr?.commitSubject ? ` "${md(clip(attr.commitSubject, 60))}"` : ""}`
             : "";
         lines.push("", `**Likely cause:** ${fileLink(options, cause)} (${group.confidence}%)${commit}`);
-        if (attr) lines.push(`<sub>${md(attr.evidence)}</sub>`);
+        // AI evidence is shown in full on the AI line below; don't repeat it here.
+        if (attr && !attr.evidence.startsWith("AI read the diff")) lines.push(`<sub>${md(attr.evidence)}</sub>`);
+    }
+
+    // AI: the PR-level root cause (saw the diff) beats the per-failure note (saw only the page).
+    const aiCause = group.failures.find((f) => f.aiCause)?.aiCause;
+    const aiNote = group.failures.find((f) => f.failure.aiNote)?.failure.aiNote;
+    if (aiCause) {
+        lines.push("", `**AI:** ${md(aiCause.summary)}${aiCause.path ? "" : " (couldn't tie it to a changed file)"}`);
+        if (aiCause.fix) lines.push(`**Fix:** ${md(aiCause.fix)}`);
+    } else if (aiNote) {
+        lines.push("", `**AI:** ${md(aiNote)}`);
     }
 
     // One line of evidence: the reason this was classified the way it was.
@@ -197,6 +208,10 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
     }
 
     if (!safe) {
+        if (report.ai) {
+            const cost = report.ai.costUsd != null ? `, ~$${report.ai.costUsd.toFixed(4)}` : "";
+            out.push(`<sub>Root cause checked by AI (${md(report.ai.model)}${cost}). The rules make the decision; AI explains and points at the change.</sub>`, "");
+        }
         out.push(`**Risk ${report.risk.score}/100:** ${report.risk.reasons.map(md).join(", ")}`);
         out.push("<sub>0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL</sub>");
         if (report.warnings.length) {
