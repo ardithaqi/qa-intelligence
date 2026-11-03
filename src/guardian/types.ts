@@ -100,7 +100,7 @@ export interface ReleaseReport {
     testsAnalyzed?: number;
     /** Failures introduced or still present in this run (excludes fixed). */
     failureCount: number;
-    /** Counts for new failures only — the ones this PR is accountable for. */
+    /** Counts for new failures only - the ones this PR is accountable for. */
     counts: CategoryCounts;
     preExistingCount: number;
     fixedCount: number;

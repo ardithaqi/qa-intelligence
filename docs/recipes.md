@@ -35,12 +35,12 @@ areas changed, then gate each suite's run on the result:
 ```
 
 `predicate-quantifier: 'every'` means `app_a_only` is only `true` when **every** changed file matches
-that filter — so a PR touching both apps runs both suites, and a PR touching only one app skips the
+that filter - so a PR touching both apps runs both suites, and a PR touching only one app skips the
 other.
 
 Each app's suite needs its own `BASE_URL`/credentials/artifact names (e.g.
 `ai-failure-artifacts-app-a`, `ai-failure-artifacts-app-b`) so the diff/history/baseline steps in the
-default workflow don't mix results from different apps — duplicate the diff/history/comment steps per
+default workflow don't mix results from different apps - duplicate the diff/history/comment steps per
 app, or run `qa-intelligence-diff`/`qa-intelligence-comment` once per app with distinct
 `--baseline`/`--current` paths.
 

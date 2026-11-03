@@ -5,10 +5,10 @@ function formatWatchlistSection(entries: FlakyWatchlistEntry[]): string {
 
     let section = `### Flaky Watchlist (${entries.length})\n\n`;
     section +=
-        "For visibility only — intermittent across recent CI runs. **Does not block merge.**\n\n";
+        "For visibility only: intermittent across recent CI runs. **Does not block merge.**\n\n";
 
     for (const entry of entries) {
-        section += `• ${entry.testFile} — unstable in ${entry.failCount} of last ${entry.totalRuns} CI runs\n`;
+        section += `• ${entry.testFile}: unstable in ${entry.failCount} of last ${entry.totalRuns} CI runs\n`;
     }
 
     return section + "\n";
@@ -79,7 +79,7 @@ export function formatDiffSections(
 
     if (unchangedFailures.length > 0 && options.gateNote !== false) {
         body +=
-            "⚠️ **Pre-existing failures** from the base branch are still failing. These are shown for visibility only — **they do not block this PR**. Only **New Issues** block merge.\n\n";
+            "⚠️ **Pre-existing failures** from the base branch are still failing. These are shown for visibility only, **they do not block this PR**. Only **New Issues** block merge.\n\n";
     }
 
     body += formatSection("New Issues", realNewFailures);
@@ -97,7 +97,7 @@ export function formatClearDiffComment(): string {
     let body = "## AI Failure Diff Summary\n\n";
     if (commit) body += `Commit: ${commit}\n`;
     body +=
-        "\n✅ **All tests passed** — no new, ongoing, or flaky failures to report.\n";
+        "\n✅ **All tests passed**. No new, ongoing, or flaky failures to report.\n";
 
     return body;
 }

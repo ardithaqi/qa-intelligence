@@ -65,7 +65,7 @@ export function commentOptionsFromEnv(env: NodeJS.ProcessEnv = process.env, cwd 
 
     let testPathPrefix = "";
     try {
-        // Tests live under e.g. playwright/ — links need the path from the repo root.
+        // Tests live under e.g. playwright/ - links need the path from the repo root.
         testPathPrefix = execFileSync("git", ["rev-parse", "--show-prefix"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
     } catch { }
 

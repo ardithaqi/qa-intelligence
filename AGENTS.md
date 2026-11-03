@@ -1,4 +1,4 @@
-# AI Release Guardian — Agent Guide
+# AI Release Guardian - Agent Guide
 
 This file orients AI agents working on **AI Release Guardian** (npm `qa-intelligence`, repo `qa-ci-intelligence`; formerly "QA Intelligence"). Read it before planning features, refactors, or docs.
 
@@ -30,32 +30,32 @@ Core capabilities (from v1):
 |------|----------|
 | Playwright hooks | `src/playwright/` |
 | AI analysis | `src/ai/failureAnalyzer.ts`, `src/ai/getProvider.ts`, `src/ai/providers/` |
-| AI cost tracking | `src/ai/estimateCost.ts` (per-call USD estimate), `src/ai/aiSummary.ts` (run rollup), `src/playwright/reporter.ts` (prints rollup via `qa-intelligence/playwright/reporter`) — wired together in `src/playwright/globalTeardown.ts`'s `runAiTeardown` |
+| AI cost tracking | `src/ai/estimateCost.ts` (per-call USD estimate), `src/ai/aiSummary.ts` (run rollup), `src/playwright/reporter.ts` (prints rollup via `qa-intelligence/playwright/reporter`) - wired together in `src/playwright/globalTeardown.ts`'s `runAiTeardown` |
 | Diff engine | `src/lib/computeDiff.ts`, `src/lib/failureIdentity.ts`, `src/lib/failureSignals.ts` (error → failure_type without AI, error signatures) |
-| Release guardian | `src/guardian/` — `analyzeRelease.ts` (orchestrator), `classify.ts`, `attribution.ts` (changed-file + area detection), `group.ts`, `risk.ts` (`RISK_WEIGHTS`), `decision.ts`, `gitContext.ts`, `runSummary.ts`, `config.ts`, `format.ts`, `types.ts` |
+| Release guardian | `src/guardian/` - `analyzeRelease.ts` (orchestrator), `classify.ts`, `attribution.ts` (changed-file + area detection), `group.ts`, `risk.ts` (`RISK_WEIGHTS`), `decision.ts`, `gitContext.ts`, `runSummary.ts`, `config.ts`, `format.ts`, `types.ts` |
 | PR comment formatting | `src/lib/format.ts` |
-| Programmatic API | `src/index.ts` — `computeDiff`, `formatDiffComment`, history helpers |
+| Programmatic API | `src/index.ts` - `computeDiff`, `formatDiffComment`, history helpers |
 | CLI tools | `src/cli/` (`init`, `diff`, `history`, `postComment`, `guardian`) |
 | Init templates | `templates/` |
 | Env validation | `src/config/env.ts` |
 
 ### CLI commands
 
-- `qa-intelligence init` — scaffold `playwright/` + `.github/workflows/qa-intelligence.yml` from `templates/`
-- `qa-intelligence-diff` — compare baseline vs current failures
-- `qa-intelligence-history` — enrich diff with recurrence; persists `.cache/failure-history.json`
-- `qa-intelligence-comment` — post/update GitHub PR summary comment (legacy diff format)
-- `ai-release-guardian analyze|comment|init` — release assessment, PR comment, scaffold
+- `qa-intelligence init` - scaffold `playwright/` + `.github/workflows/qa-intelligence.yml` from `templates/`
+- `qa-intelligence-diff` - compare baseline vs current failures
+- `qa-intelligence-history` - enrich diff with recurrence; persists `.cache/failure-history.json`
+- `qa-intelligence-comment` - post/update GitHub PR summary comment (legacy diff format)
+- `ai-release-guardian analyze|comment|init` - release assessment, PR comment, scaffold
 
 ### Publishing to npm
 
 Before each release, update in order:
 
-1. **`package.json`** — bump `version` (semver)
-2. **`CHANGELOG.md`** — move/add entry under the new version (not "Unreleased" only)
-3. **`README.md`** — if user-facing setup or CLI behavior changed
-4. **`AGENTS.md`** — if architecture, paths, or agent conventions changed
-5. **`templates/`** — if scaffold defaults changed (e.g. workflow, `playwright/package.json` version pin)
+1. **`package.json`** - bump `version` (semver)
+2. **`CHANGELOG.md`** - move/add entry under the new version (not "Unreleased" only)
+3. **`README.md`** - if user-facing setup or CLI behavior changed
+4. **`AGENTS.md`** - if architecture, paths, or agent conventions changed
+5. **`templates/`** - if scaffold defaults changed (e.g. workflow, `playwright/package.json` version pin)
 
 Then: `npm test` → `npm run build` → `git commit` → `git push` → `npm publish`.
 
@@ -77,7 +77,7 @@ Planned v3 features should plug into these seams rather than adding parallel pip
 
 | v3 feature | Hook |
 |------------|------|
-| Jira/GitHub issues, Slack/Teams | Consume `ReleaseReport` (`release-report.json`) — `groups[]` is the unit for one issue/notification |
+| Jira/GitHub issues, Slack/Teams | Consume `ReleaseReport` (`release-report.json`) - `groups[]` is the unit for one issue/notification |
 | Quarantine / flaky health | `classifyFailure` flaky reasons + `computeFlakyWatchlist`; extend `RunRecord` with optional fields (keep old caches loadable) |
 | Learning from past classifications, recurring root causes | Persist `groups[].rootCause` per run in the history cache |
 | Ownership / CODEOWNERS | Map `Attribution.path` → owner in `analyzeRelease` |
@@ -91,18 +91,18 @@ Planned v3 features should plug into these seams rather than adding parallel pip
 
 Work top-down unless the user scopes a specific tier or item.
 
-### Tier 1 — High impact (do first)
+### Tier 1 - High impact (do first)
 
 1. **Unit tests for the package**
-   - No tests exist today — highest credibility gap for a PR-blocking tool
+   - No tests exist today - highest credibility gap for a PR-blocking tool
    - Start with pure unit tests (no Playwright runtime):
-     - `computeDiff` — new / unchanged / fixed / blocking classification
-     - `failureIdentity` — path normalization, stack parsing, diff keys
-     - `format` — PR comment output, recurrence suffixes
-     - `history` — occurrence counts, cache rotation (`MAX_RUNS`)
+     - `computeDiff` - new / unchanged / fixed / blocking classification
+     - `failureIdentity` - path normalization, stack parsing, diff keys
+     - `format` - PR comment output, recurrence suffixes
+     - `history` - occurrence counts, cache rotation (`MAX_RUNS`)
 
 2. **CI for this repo**
-   - Add `.github/workflows/` — `npm test`, `npm run build` on PR
+   - Add `.github/workflows/` - `npm test`, `npm run build` on PR
    - Optional: run CLI against fixture artifact directories
    - Dogfood the diff engine on this repo's PRs
 
@@ -121,7 +121,7 @@ Work top-down unless the user scopes a specific tier or item.
    - "Why not Playwright's built-in reporter?" section
    - Keep setup docs; add visible proof of value
 
-### Tier 2 — Differentiation & depth
+### Tier 2 - Differentiation & depth
 
 5. **Pluggable AI providers**
    - Abstract OpenAI behind a provider interface
@@ -141,15 +141,15 @@ Work top-down unless the user scopes a specific tier or item.
    - README documents the pattern and migration from SHA-based keys
    - Optional S3/GCS persistence for recurrence tracking across runs
 
-### Tier 3 — Reach & ecosystem
+### Tier 3 - Reach & ecosystem
 
 9. **Beyond GitHub**
    - GitLab MR comments, Bitbucket PR comments (mirror `postComment.ts` logic)
 
 10. **Team integrations**
-    - Slack — diff summary to channel
-    - Linear / Jira — auto-create issues for new non-flaky failures
-    - GitHub Check Run Annotations — inline hints on changed files
+    - Slack - diff summary to channel
+    - Linear / Jira - auto-create issues for new non-flaky failures
+    - GitHub Check Run Annotations - inline hints on changed files
 
 11. **Playwright reporter entry point**
     - Alternative to swapping `test` imports:
@@ -157,9 +157,9 @@ Work top-down unless the user scopes a specific tier or item.
       reporter: [["qa-intelligence/reporter", { ai: true }]]
       ```
     - Same artifact + intelligence pipeline underneath
-    - ✅ (partial, 1.5.1) `qa-intelligence/playwright/reporter` (`src/playwright/reporter.ts`) exists today, but only to print the AI cost rollup + saved-summary path *after* Playwright's own summary — `globalTeardown` still owns the actual analysis. The bigger idea above (a reporter that replaces the `test` import swap entirely) is still open.
+    - ✅ (partial, 1.5.1) `qa-intelligence/playwright/reporter` (`src/playwright/reporter.ts`) exists today, but only to print the AI cost rollup + saved-summary path *after* Playwright's own summary - `globalTeardown` still owns the actual analysis. The bigger idea above (a reporter that replaces the `test` import swap entirely) is still open.
 
-### Tier 4 — Polish & positioning
+### Tier 4 - Polish & positioning
 
 12. **Consolidate types + validation**
     - Single `Failure` / `DiffResult` source in `types.ts`
@@ -204,7 +204,7 @@ Unit tests + package CI → GitHub Action → README demo + docs site
 
 ## When implementing
 
-- **Minimize scope** — smallest correct diff; don't refactor unrelated code
-- **Reuse existing modules** — extend `computeDiff`, `format`, hooks rather than parallel implementations
-- **Tests before big behavior changes** — especially diff classification and blocking logic
-- **Preserve backward compatibility** — breaking CLI flags or export paths needs semver + changelog note
+- **Minimize scope** - smallest correct diff; don't refactor unrelated code
+- **Reuse existing modules** - extend `computeDiff`, `format`, hooks rather than parallel implementations
+- **Tests before big behavior changes** - especially diff classification and blocking logic
+- **Preserve backward compatibility** - breaking CLI flags or export paths needs semver + changelog note

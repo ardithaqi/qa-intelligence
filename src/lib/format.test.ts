@@ -158,7 +158,7 @@ describe("formatDiffComment", () => {
         assert.match(body, /### Flaky Watchlist \(1\)/);
         assert.match(
             body,
-            /tests\/checkout\.spec\.ts — unstable in 4 of last 10 CI runs/
+            /tests\/checkout\.spec\.ts: unstable in 4 of last 10 CI runs/
         );
     });
 });

@@ -99,7 +99,7 @@ export async function main() {
         console.log(`  created ${file}`);
     }
     for (const file of skipped) {
-        console.log(`  skipped ${file} (exists — use --force to overwrite)`);
+        console.log(`  skipped ${file} (exists, use --force to overwrite)`);
     }
 
     if (written.length === 0 && skipped.length > 0) {
@@ -116,7 +116,7 @@ export async function main() {
     if (!noCi) {
         console.log("  5. Update BASE_URL in .github/workflows/qa-intelligence.yml");
     }
-    console.log("  6. Write tests — import from qa-intelligence/playwright");
+    console.log("  6. Write tests, import from qa-intelligence/playwright");
 }
 
 if (require.main === module) {

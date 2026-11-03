@@ -38,7 +38,7 @@ function historyIndex(history: History | undefined): Map<string, FlakyWatchlistE
 
 /**
  * Turns a failure diff into a release report: classification, grouping,
- * attribution, risk score and decision. Pure and deterministic — same input,
+ * attribution, risk score and decision. Pure and deterministic - same input,
  * same output. Works without AI; AI-derived fields are just extra evidence.
  */
 export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions = {}): ReleaseReport {

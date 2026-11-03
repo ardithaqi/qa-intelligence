@@ -1,5 +1,5 @@
 /**
- * Programmatic API — use in custom CI scripts, GitLab/Jenkins jobs, Slack bots, etc.
+ * Programmatic API - use in custom CI scripts, GitLab/Jenkins jobs, Slack bots, etc.
  * CLIs (qa-intelligence-diff, -history, -comment) wrap these same functions.
  */
 
