@@ -24,7 +24,8 @@ merge-gate behavior in the scaffolded workflow.
   - writes `release-report.json` and `release-guardian.md`; posts a compact "AI Release Guardian" PR
     comment: the decision, one sentence, and one collapsible line per problem (where · why · likely
     cause), capped at 10 lines plus "…and N more". Test and cause paths link to the exact line on
-    GitHub, and the still-failing / fixed / score details sit under one "More" section. A clean or
+    GitHub, and still-failing / fixed tests sit in one collapsed line. The score breakdown is kept
+    in `release-report.json`, not the comment. A clean or
     safe PR shows just "SAFE TO MERGE" and one line, with no risk score
 - AI root cause from the PR diff: with an AI key set, `analyze` makes one call with the failing tests,
   their errors and the diff of the changed files, and gets back per problem the file that broke it,

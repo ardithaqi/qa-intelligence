@@ -126,7 +126,7 @@ describe("AI root cause in the release report", () => {
         assert.match(md, /likely cause <code>src\/lib\/money\.ts<\/code>/);
         assert.match(md, /\*\*AI:\*\* roundCents now floors, so 29\.9 becomes 29\./);
         assert.match(md, /\*\*Fix:\*\* Use Math\.round\./);
-        assert.match(md, /Root cause checked by AI \(claude-haiku-5-5, ~\$0\.0021\)/);
+        assert.match(md, /<sub>AI root cause: claude-haiku-5-5 · ~\$0\.0021<\/sub>/);
         assert.equal((md.match(/roundCents now floors/g) ?? []).length, 1, "explanation shown once");
     });
 

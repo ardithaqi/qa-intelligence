@@ -18,14 +18,14 @@ The PR comment stays short no matter how many tests fail. You get one line per *
 ▸ Regression · 3 tests · expected "dashboard", got "login" · likely cause src/auth/session.ts
 ▸ Infrastructure · report.spec.ts:5 · can't reach server (ERR_CONNECTION_REFUSED)
 ▸ Flaky · search.spec.ts:5 · failed, then passed on retry
-▸ More: still failing (1), fixed (1), score
+▸ Still failing from main (1) · Fixed by this PR (1)
 ```
 
 The verdict sits in a GitHub alert box: red for BLOCK, purple for REVIEW REQUIRED, and yellow for SAFE TO MERGE when flaky or infrastructure failures happened (you can merge, but something wobbled). A clean PR is just "SAFE TO MERGE" with no box.
 
 Up to 10 problem lines are shown, and anything beyond that sits behind "…and N more". Failures with the same cause (the same changed file, or the exact same error) share one line.
 
-Every number has a reason, one click away: each problem shows why it was classified that way, and the score breakdown sits under **More**. Classification, scoring and the decision are **deterministic code**. AI analysis is optional extra evidence and never the verdict.
+Every verdict has a reason, one click away: each problem shows why it was classified that way. The full score breakdown (every point and why) is in `release-report.json` rather than the comment. Classification, scoring and the decision are **deterministic code**. AI analysis is optional extra evidence and never the verdict.
 
 Still included from QA Intelligence: AI failure analysis, PR failure diff (new / flaky / still failing / fixed), retry-aware flaky detection, recurrence tracking and the Flaky Watchlist.
 

@@ -192,9 +192,26 @@ function countsLine(report: ReleaseReport, options: CommentOptions): string {
     return parts.join(" · ");
 }
 
+/** Warnings that need no action from the reader; kept in release-report.json, not rendered. */
+const QUIET_WARNING = /no AI analysis available/;
+
+/**
+ * One small footer line for non-safe PRs: what AI did and any setup problem
+ * worth fixing (e.g. no git base). The score breakdown lives in release-report.json.
+ */
+function footer(report: ReleaseReport): string {
+    if (report.decision === "SAFE TO MERGE") return "";
+    const lines: string[] = [];
+    if (report.ai) {
+        const cost = report.ai.costUsd != null ? ` · ~$${report.ai.costUsd.toFixed(4)}` : "";
+        lines.push(`AI root cause: ${md(report.ai.model)}${cost}`);
+    }
+    for (const w of report.warnings) if (!QUIET_WARNING.test(w)) lines.push(md(w));
+    return lines.length ? `\n<sub>${lines.join("<br>")}</sub>\n` : "";
+}
+
 function moreSection(report: ReleaseReport, diff: DiffResult | undefined, options: CommentOptions): string {
     const out: string[] = [];
-    const safe = report.decision === "SAFE TO MERGE";
 
     const existing = report.failures.filter((f) => f.lifecycle === "existing");
     if (existing.length) {
@@ -210,27 +227,14 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
         out.push("");
     }
 
-    if (!safe) {
-        if (report.ai) {
-            const cost = report.ai.costUsd != null ? `, ~$${report.ai.costUsd.toFixed(4)}` : "";
-            out.push(`<sub>Root cause checked by AI (${md(report.ai.model)}${cost}). The rules make the decision; AI explains and points at the change.</sub>`, "");
-        }
-        out.push(`**Risk ${report.risk.score}/100:** ${report.risk.reasons.map(md).join(", ")}`);
-        out.push("<sub>0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL</sub>");
-        if (report.warnings.length) {
-            out.push("", ...report.warnings.map((w) => `<sub>Note: ${md(w)}</sub>`));
-        }
-    }
-
     if (out.length === 0) return "";
 
     const label = [
-        existing.length ? `still failing (${existing.length})` : "",
-        fixed.length ? `fixed (${fixed.length})` : "",
-        safe ? "" : "score",
-    ].filter(Boolean).join(", ");
+        existing.length ? `Still failing from main (${existing.length})` : "",
+        fixed.length ? `Fixed by this PR (${fixed.length})` : "",
+    ].filter(Boolean).join(" · ");
 
-    return `<details><summary>More: ${label}</summary>\n\n${out.join("\n")}\n\n</details>\n`;
+    return `<details><summary>${label}</summary>\n\n${out.join("\n").trim()}\n\n</details>\n`;
 }
 
 /**
@@ -288,5 +292,6 @@ export function formatReleaseComment(
 
     if (shown.length) body += "\n";
     body += moreSection(report, diff, options);
+    body += footer(report);
     return body;
 }

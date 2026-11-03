@@ -304,6 +304,20 @@ describe("formatReleaseComment", () => {
         assert.doesNotMatch(md, /Call log/);
     });
 
+    it("keeps the score breakdown out of the comment and lists main's failures and fixes compactly", () => {
+        const report = analyzeRelease(
+            diff({ newFailures: [f("tests/checkout.spec.ts")], unchangedFailures: [f("tests/legacy.spec.ts")], fixedFailures: [f("tests/old.spec.ts")] }),
+            { changes: { files: [], warning: "No base ref given (--base); likely-source attribution skipped." } }
+        );
+        const md = formatReleaseComment(report, diff({ fixedFailures: [f("tests/old.spec.ts")] }), { commit: "" });
+        assert.doesNotMatch(md, /More:|\+40|0–29 LOW/, "no score breakdown or legend");
+        assert.match(md, /<summary>Still failing from main \(1\) · Fixed by this PR \(1\)<\/summary>/);
+        assert.match(md, /<sub>No base ref given/, "setup warnings stay, as a footer");
+        assert.doesNotMatch(md, /no AI analysis available/, "quiet note is kept in JSON only");
+        assert.ok(report.warnings.some((w) => /no AI analysis available/.test(w)));
+        assert.ok(report.risk.reasons.length > 0, "breakdown still in release-report.json");
+    });
+
     it("never writes an em dash or emoji icons", () => {
         const busy = analyzeRelease(diff({ newFailures: [f("tests/login.spec.ts", { title: "t" }), flakyNoise, infraNoise], unchangedFailures: [f("tests/legacy.spec.ts")] }));
         const text = formatReleaseComment(busy) + busy.decisionReason;
