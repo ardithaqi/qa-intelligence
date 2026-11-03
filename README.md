@@ -89,7 +89,19 @@ AI_MODEL=llama3
 
 Everything else (diff, classification, grouping, risk, decision) works **without AI**. With no API key set, AI analysis is skipped and failures are classified from Playwright's error output.
 
-**What AI adds.** One small call per failed test (about $0.0005 to $0.001 with `claude-haiku-5-5`). The AI's failure type and confidence become one more piece of evidence: when it agrees with the rules, confidence goes up a few points and the comment says "AI analysis agrees". It never overrides the rules. A strict-mode locator stays a broken test and a refused connection stays infrastructure even if the AI labels them differently, and a bare timeout stays "Unclear" however confident the AI is.
+**What AI adds.** Without AI you get *where* and *what* (test, line, expected vs received). With AI you also get *why* and *how to fix it*:
+
+- **Root cause from the diff** (`ai-release-guardian analyze`, one call per PR, about $0.0002 with `claude-haiku-5-5`). The AI gets the failing tests, their errors and the actual diff of the changed files, and answers per problem: which file broke it, what changed, and the fix. This finds causes the name-based rules can't. For example, a rounding change in `src/lib/money.ts` breaking a checkout test: the rules see no link between "money" and "checkout", but the AI reads `Math.round` turning into `Math.floor`.
+- **Per-test analysis** (Playwright teardown, one call per failed test, about $0.0005 to $0.001). It sets the failure type and adds a one-line observation to the expanded view.
+
+The rules still make the decision, and the AI is held to a few limits:
+
+- It can only name a file that is actually in the diff.
+- Its pick counts only at 50%+ confidence and is capped at 85%. It reaches 90% only when the name-based rules agree.
+- It can't change a flaky, infrastructure or clear-regression verdict.
+- The one thing it can settle is an "Unclear" failure that it confidently traces to the failing test's own code. That becomes "Broken test" (60%), for example a test that sets a 1s timeout and then waits 3s.
+
+`--ai auto` (default) runs the root-cause call whenever a key is set. Use `--ai off` (or `RELEASE_GUARDIAN_AI=off`) to stay fully deterministic.
 
 In CI, add `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` as a repo secret. The scaffolded workflow passes both, plus the optional `AI_PROVIDER` / `AI_MODEL` repo variables.
 

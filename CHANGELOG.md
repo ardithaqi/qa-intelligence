@@ -26,6 +26,14 @@ merge-gate behavior in the scaffolded workflow.
     cause), capped at 10 lines plus "…and N more". Test and cause paths link to the exact line on
     GitHub, and the still-failing / fixed / score details sit under one "More" section. A clean or
     safe PR shows just "SAFE TO MERGE" and one line, with no risk score
+- AI root cause from the PR diff: with an AI key set, `analyze` makes one call with the failing tests,
+  their errors and the diff of the changed files, and gets back per problem the file that broke it,
+  what changed, and a fix. Shown as **AI** / **Fix** lines in the expanded problem. The pick must be a
+  file in the diff, counts from 50% confidence, is capped at 85% (90% when the naming rules agree),
+  and can only re-label an "Unclear" failure as a broken test when it traces it to the test's own
+  code. `--ai auto|on|off` / `RELEASE_GUARDIAN_AI`
+- The per-test AI analysis's observation line ("Root cause, Line 2" in `ai.txt`) is shown in the
+  expanded problem instead of being discarded
 - Optional `release-guardian.config.json` for product areas and critical areas
 - Playwright reporter writes `artifacts/run-summary.json` (test totals by final outcome)
 - Programmatic API: `analyzeRelease`, `classifyFailure`, `attributeFailure`, `groupFailures`,
