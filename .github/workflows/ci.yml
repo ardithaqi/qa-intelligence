@@ -37,3 +37,20 @@ jobs:
             if (d.fixedFailures.length !== 1) throw new Error('expected 1 fixed failure');
             if (d.blockingFailures.length !== 1) throw new Error('expected 1 blocking failure');
           "
+
+      - name: Smoke test release guardian CLI against fixtures
+        run: |
+          node dist/cli/guardian.js analyze \
+            --diff failure-diff.json \
+            --current fixtures/current-artifacts \
+            --fail-on never
+          node -e "
+            const { report } = require('./release-report.json');
+            if (report.decision !== 'BLOCK') throw new Error('expected BLOCK, got ' + report.decision);
+            if (report.counts.regression !== 1) throw new Error('expected 1 regression');
+            if (report.counts.flaky !== 1) throw new Error('expected 1 flaky');
+            if (report.preExistingCount !== 1) throw new Error('expected 1 pre-existing');
+          "
+          if node dist/cli/guardian.js analyze --diff failure-diff.json --current fixtures/current-artifacts --fail-on review > /dev/null; then
+            echo "expected exit 1 for BLOCK with --fail-on review"; exit 1
+          fi

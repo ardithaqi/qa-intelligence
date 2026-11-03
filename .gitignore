@@ -4,3 +4,5 @@ dist/
 *.tgz
 failure-diff.json
 .cache/
+release-report.json
+release-guardian.md
