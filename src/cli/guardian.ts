@@ -145,11 +145,12 @@ export async function runAnalyze(
     if (provider && groupsForAi(report).length > 0 && changes.files.length > 0) {
         try {
             const patches = collectPatches(base, filesForAi(report, changes.files), values.head);
-            const { causes, costUsd } = await explainRootCauses(report, changes.files, patches, provider);
-            if (Object.keys(causes).length > 0) {
+            const { causes, overview, costUsd } = await explainRootCauses(report, changes.files, patches, provider);
+            if (Object.keys(causes).length > 0 || overview) {
                 report = analyzeRelease(diff, {
                     ...options,
                     aiCauses: causes,
+                    ...(overview ? { aiOverview: overview } : {}),
                     ai: { model: provider.model, provider: provider.name, ...(costUsd != null ? { costUsd } : {}) },
                 });
                 console.log(`AI root cause: ${provider.model}${costUsd != null ? `, ~$${costUsd.toFixed(4)}` : ""}`);

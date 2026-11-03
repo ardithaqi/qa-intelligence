@@ -92,6 +92,7 @@ Everything else (diff, classification, grouping, risk, decision) works **without
 **What AI adds.** Without AI you get *where* and *what* (test, line, expected vs received). With AI you also get *why* and *how to fix it*:
 
 - **Root cause from the diff** (`ai-release-guardian analyze`, one call per PR, about $0.0002 with `claude-haiku-5-5`). The AI gets the failing tests, their errors and the actual diff of the changed files, and answers per problem: which file broke it, what changed, and the fix. This finds causes the name-based rules can't. For example, a rounding change in `src/lib/money.ts` breaking a checkout test: the rules see no link between "money" and "checkout", but the AI reads `Math.round` turning into `Math.floor`.
+- **Summary at the top.** With 2 or more problems, the same call writes a short **AI summary** right under the verdict: what broke, which change is behind it, and whether the problems share one cause. With a single problem its own AI line already says that, so no summary is added.
 - **Per-test analysis** (Playwright teardown, one call per failed test, about $0.0005 to $0.001). It sets the failure type and adds a one-line observation to the expanded view.
 
 The rules still make the decision, and the AI is held to a few limits:

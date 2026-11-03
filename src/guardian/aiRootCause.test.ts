@@ -8,6 +8,7 @@ import {
     explainRootCauses,
     failureRef,
     filesForAi,
+    parseOverview,
     parseRootCauseResponse,
 } from "./aiRootCause";
 import { analyzeRelease } from "./analyzeRelease";
@@ -164,5 +165,54 @@ describe("AI root cause in the release report", () => {
         const failing = analyzeRelease(diff([f("tests/checkout.spec.ts")]), { changes });
         assert.deepEqual(await explainRootCauses(failing, changes.files, {}, provider), { causes: {} });
         assert.equal(provider.prompts.length, 0, "no paid calls");
+    });
+});
+
+describe("AI overview", () => {
+    const two = [
+        f("tests/checkout.spec.ts"),
+        f("tests/profile.spec.ts", { title: "avatar upload", errorMessage: 'Expected: "ok"\nReceived: "error"' }),
+    ];
+    const objectAnswer = JSON.stringify({
+        overview: "Checkout totals are one short because roundCents now floors. The avatar upload failure looks unrelated to this PR's diff.",
+        problems: [
+            { id: "G1", file: "src/lib/money.ts", summary: "roundCents floors, 29.6 becomes 29.", fix: "Use Math.round.", confidence: 90 },
+            { id: "G2", file: null, summary: "No change in the diff touches uploads.", confidence: 10 },
+        ],
+    });
+
+    it("parses the overview and the problems from the object answer", () => {
+        const report = analyzeRelease(diff(two), { changes });
+        assert.match(parseOverview(objectAnswer) ?? "", /^Checkout totals are one short/);
+        const causes = parseRootCauseResponse(objectAnswer, report, changes.files.map((c) => c.path));
+        assert.equal(Object.keys(causes).length, 2);
+    });
+
+    it("asks for an overview and passes flaky/infra failures only as context", () => {
+        const report = analyzeRelease(diff([...two, f("tests/search.spec.ts", { is_flaky_suspected: true })]), { changes });
+        const prompt = buildRootCausePrompt(report, patches);
+        assert.match(prompt, /"overview"/);
+        assert.match(prompt, /Also failed \(already classified, do not analyze\):\n\[\n  \{\n    "category": "flaky"/);
+        const problems = prompt.slice(prompt.indexOf("Problems:"), prompt.indexOf("Also failed"));
+        assert.equal((problems.match(/"id": "G/g) ?? []).length, 2, "only the two real problems get ids");
+    });
+
+    it("shows the summary above the list with 2+ problems, not with 1", async () => {
+        const provider = fakeProvider(objectAnswer);
+        const before = analyzeRelease(diff(two), { changes });
+        const { causes, overview } = await explainRootCauses(before, changes.files, patches, provider);
+        const md = formatReleaseComment(analyzeRelease(diff(two), { changes, aiCauses: causes, aiOverview: overview }), undefined, { commit: "" });
+        const summaryAt = md.indexOf("**AI summary:** Checkout totals are one short");
+        assert.ok(summaryAt > 0 && summaryAt < md.indexOf("<details>"), "summary sits before the problem list");
+
+        const single = analyzeRelease(diff([two[0]]), { changes, aiOverview: overview });
+        assert.doesNotMatch(formatReleaseComment(single, undefined, { commit: "" }), /AI summary/);
+    });
+
+    it("still reads the older bare-array answer", () => {
+        const report = analyzeRelease(diff([two[0]]), { changes });
+        const causes = parseRootCauseResponse(answer({ file: "src/lib/money.ts", summary: "s", confidence: 80 }), report, ["src/lib/money.ts"]);
+        assert.equal(Object.values(causes)[0].path, "src/lib/money.ts");
+        assert.equal(parseOverview(answer({ file: null, summary: "s", confidence: 1 })), undefined);
     });
 });

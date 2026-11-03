@@ -33,6 +33,8 @@ export interface AnalyzeReleaseOptions {
     aiCauses?: Record<string, AiCause>;
     /** Shown in the report when the AI step ran. */
     ai?: ReleaseReport["ai"];
+    /** AI overview of the whole run (from explainRootCauses). */
+    aiOverview?: string;
 }
 
 /**
@@ -143,5 +145,6 @@ export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions 
         failures,
         warnings,
         ...(options.ai ? { ai: options.ai } : {}),
+        ...(options.aiOverview ? { aiOverview: options.aiOverview } : {}),
     };
 }

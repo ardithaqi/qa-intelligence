@@ -32,6 +32,8 @@ merge-gate behavior in the scaffolded workflow.
   file in the diff, counts from 50% confidence, is capped at 85% (90% when the naming rules agree),
   and can only re-label an "Unclear" failure as a broken test when it traces it to the test's own
   code. `--ai auto|on|off` / `RELEASE_GUARDIAN_AI`
+- AI summary: with 2 or more problems, the same root-cause call returns a 1 to 3 sentence overview
+  shown right under the verdict, so developers get the gist before opening any problem
 - The per-test AI analysis's observation line ("Root cause, Line 2" in `ai.txt`) is shown in the
   expanded problem instead of being discarded
 - Optional `release-guardian.config.json` for product areas and critical areas

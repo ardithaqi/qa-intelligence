@@ -7,6 +7,9 @@ export const GUARDIAN_COMMENT_HEADER = "## AI Release Guardian";
 /** Problems listed one line each; the rest go behind "and N more". */
 export const MAX_PROBLEM_LINES = 10;
 
+/** The AI overview is shown only from this many problems; a single problem's own AI line covers it. */
+export const MIN_PROBLEMS_FOR_OVERVIEW = 2;
+
 const CATEGORY: Record<FailureCategory, { label: string }> = {
     regression: { label: "Regression" },
     test_issue: { label: "Broken test" },
@@ -267,6 +270,10 @@ export function formatReleaseComment(
 
     let body = `${GUARDIAN_COMMENT_HEADER}\n\n`;
     body += verdictBlock(report);
+    // With several problems, a short AI overview before the list; one problem explains itself.
+    if (report.aiOverview && report.groups.length >= MIN_PROBLEMS_FOR_OVERVIEW) {
+        body += `**AI summary:** ${md(report.aiOverview)}\n\n`;
+    }
     body += `<sub>${countsLine(report, options)}${commit ? ` · ${codeMd(shortSha(commit))}` : ""}</sub>\n\n`;
 
     const shown = report.groups.slice(0, MAX_PROBLEM_LINES);

@@ -125,6 +125,8 @@ export interface ReleaseReport {
     warnings: string[];
     /** Present when the AI root-cause step ran. */
     ai?: { model: string; provider: string; costUsd?: number };
+    /** AI's 2-3 sentence overview of the whole run, read before the problem list. */
+    aiOverview?: string;
 }
 
 export interface GuardianConfig {

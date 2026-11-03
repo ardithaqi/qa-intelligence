@@ -49,16 +49,23 @@ function errorExcerpt(f: Failure): string {
     return (callLog >= 0 ? lines.slice(0, callLog) : lines).slice(0, 6).join("\n");
 }
 
+const testRef = (f: Failure) => `${f.file}:${f.line}${f.title ? ` "${f.title}"` : ""}`;
+
 export function buildRootCausePrompt(report: ReleaseReport, patches: Record<string, string>): string {
     const problems = groupsForAi(report).map((g) => ({
         id: g.id,
-        tests: g.failures.map((f) => `${f.failure.file}:${f.failure.line}${f.failure.title ? ` "${f.failure.title}"` : ""}`),
+        tests: g.failures.map((f) => testRef(f.failure)),
         error: errorExcerpt(g.failures[0].failure),
     }));
+    // Already decided by the rules (flaky, infrastructure); only for the overview.
+    const alsoFailed = report.groups
+        .filter((g) => !ACTIONABLE.has(g.category))
+        .map((g) => ({ category: g.category, tests: g.failures.map((f) => testRef(f.failure)) }));
     const diff = Object.entries(patches).map(([file, patch]) => `### ${file}\n${patch}`).join("\n\n");
 
     return `You are reviewing a pull request whose end-to-end tests failed. For each problem, decide which
-changed file in the diff most likely caused it, using ONLY the errors and the diff below.
+changed file in the diff most likely caused it, using ONLY the errors and the diff below. Then write a
+short overview of the whole run for the developer.
 
 Rules:
 - "file" must be one of the changed files listed in the diff, exactly as written, or null.
@@ -66,16 +73,41 @@ Rules:
 - "summary": what changed and why it makes the test fail, max 2 short sentences, concrete (name the value or line).
 - "fix": one short sentence, or null.
 - "confidence": 0-100, how strongly the diff supports the link. Name-only resemblance is not evidence.
+- "overview": 1 to 3 short sentences a developer reads first. Say what broke and which change is most
+  likely behind it; say the problems share one cause only if they do. Mention "also failed" items in at
+  most a few words (they are flaky or infrastructure and do not block). Stop once that is said: no
+  filler, no restating counts. Plain text, no lists, no file contents.
 - No markdown, no prose outside the JSON. Do not use the em dash character.
 
 Problems:
 ${JSON.stringify(problems, null, 2)}
 
+Also failed (already classified, do not analyze):
+${alsoFailed.length ? JSON.stringify(alsoFailed, null, 2) : "(none)"}
+
 Diff of changed files:
 ${diff || "(no diff available)"}
 
-Respond with only a JSON array:
-[{"id": "G1", "file": "path/or/null", "summary": "...", "fix": "...", "confidence": 0}]`;
+Respond with only this JSON object:
+{"overview": "...", "problems": [{"id": "G1", "file": "path/or/null", "summary": "...", "fix": "...", "confidence": 0}]}`;
+}
+
+/** Parsed `{overview, problems}` object, tolerant of fences or chatter around it. */
+function extractObject(text: string): { overview?: unknown; problems?: unknown } | null {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start < 0 || end <= start) return null;
+    try {
+        const parsed = JSON.parse(text.slice(start, end + 1));
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+/** The run overview from the AI answer, cleaned and capped; undefined when missing. */
+export function parseOverview(text: string): string | undefined {
+    return clean(extractObject(text)?.overview, 500);
 }
 
 /** First top-level JSON array in the text, tolerant of fences or chatter around it. */
@@ -103,7 +135,8 @@ export function parseRootCauseResponse(
     report: ReleaseReport,
     changedPaths: string[]
 ): Record<string, AiCause> {
-    const items = extractArray(text) ?? [];
+    const object = extractObject(text);
+    const items = Array.isArray(object?.problems) ? object!.problems : extractArray(text) ?? [];
     const groups = new Map(groupsForAi(report).map((g) => [g.id, g]));
     const allowed = new Set(changedPaths);
     const out: Record<string, AiCause> = {};
@@ -130,12 +163,14 @@ export async function explainRootCauses(
     changes: ChangedFile[],
     patches: Record<string, string>,
     provider: AiProvider
-): Promise<{ causes: Record<string, AiCause>; costUsd?: number }> {
+): Promise<{ causes: Record<string, AiCause>; overview?: string; costUsd?: number }> {
     if (groupsForAi(report).length === 0 || Object.keys(patches).length === 0) return { causes: {} };
     const result = await provider.analyze(buildRootCausePrompt(report, patches));
     if (!result?.content) return { causes: {} };
+    const overview = parseOverview(result.content);
     return {
         causes: parseRootCauseResponse(result.content, report, changes.map((c) => c.path)),
+        ...(overview ? { overview } : {}),
         ...(result.estimatedCostUsd != null ? { costUsd: result.estimatedCostUsd } : {}),
     };
 }
