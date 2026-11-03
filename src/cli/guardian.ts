@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { parseArgs } from "util";
 import { analyzeRelease } from "../guardian/analyzeRelease";
 import { loadGuardianConfig, DEFAULT_CONFIG_FILE } from "../guardian/config";
-import { formatReleaseComment } from "../guardian/format";
+import { formatReleaseComment, type CommentOptions } from "../guardian/format";
 import { collectChanges } from "../guardian/gitContext";
 import { readRunSummary } from "../guardian/runSummary";
 import type { ReleaseReport } from "../guardian/types";
@@ -55,6 +56,26 @@ function defaultBase(env: NodeJS.ProcessEnv): string | undefined {
     return undefined;
 }
 
+/** Clickable file links + CI run link when running in GitHub Actions. */
+export function commentOptionsFromEnv(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): CommentOptions {
+    const server = env.GITHUB_SERVER_URL || "https://github.com";
+    const repo = env.GITHUB_REPOSITORY;
+    const sha = env.RELEASE_GUARDIAN_HEAD_SHA || env.GITHUB_SHA;
+    if (!repo || !sha) return {};
+
+    let testPathPrefix = "";
+    try {
+        // Tests live under e.g. playwright/ — links need the path from the repo root.
+        testPathPrefix = execFileSync("git", ["rev-parse", "--show-prefix"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    } catch { }
+
+    return {
+        commit: sha,
+        links: { server, repo, sha, testPathPrefix },
+        ...(env.GITHUB_RUN_ID ? { runUrl: `${server}/${repo}/actions/runs/${env.GITHUB_RUN_ID}` } : {}),
+    };
+}
+
 export function exitCodeFor(decision: ReleaseReport["decision"], failOn: FailOn): number {
     if (failOn === "never") return 0;
     if (decision === "BLOCK") return 1;
@@ -97,7 +118,7 @@ export function runAnalyze(args: string[], env: NodeJS.ProcessEnv = process.env)
     });
     if (configWarning) report.warnings.unshift(configWarning);
 
-    const markdown = formatReleaseComment(report, diff);
+    const markdown = formatReleaseComment(report, diff, commentOptionsFromEnv(env));
     const saved: SavedReport = { report, diff };
     fs.writeFileSync(values.out, JSON.stringify(saved, null, 2) + "\n");
     fs.writeFileSync(values.markdown, markdown);
@@ -126,7 +147,7 @@ export async function runComment(args: string[], env: NodeJS.ProcessEnv = proces
     }
 
     const { report, diff } = JSON.parse(fs.readFileSync(values.report, "utf8")) as SavedReport;
-    const body = formatReleaseComment(report, diff);
+    const body = formatReleaseComment(report, diff, commentOptionsFromEnv(env));
     const nothingToReport = report.failureCount === 0 && report.fixedCount === 0;
 
     // Imported lazily so `analyze` doesn't load Octokit.

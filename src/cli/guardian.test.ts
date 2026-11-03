@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { exitCodeFor } from "./guardian";
+import { commentOptionsFromEnv, exitCodeFor } from "./guardian";
 
 const CLI = path.resolve(__dirname, "guardian.ts");
 const TSX = path.resolve(__dirname, "..", "..", "node_modules", ".bin", "tsx");
@@ -114,3 +114,18 @@ describe("ai-release-guardian analyze (CLI)", () => {
     });
 });
 
+describe("commentOptionsFromEnv", () => {
+    it("builds GitHub links from Actions env and prefers the PR head sha", () => {
+        const o = commentOptionsFromEnv(
+            { GITHUB_REPOSITORY: "acme/shop", GITHUB_SHA: "merge123", RELEASE_GUARDIAN_HEAD_SHA: "head456", GITHUB_RUN_ID: "99" },
+            os.tmpdir()
+        );
+        assert.equal(o.links?.sha, "head456");
+        assert.equal(o.links?.server, "https://github.com");
+        assert.equal(o.runUrl, "https://github.com/acme/shop/actions/runs/99");
+    });
+
+    it("adds no links outside CI", () => {
+        assert.deepEqual(commentOptionsFromEnv({}), {});
+    });
+});

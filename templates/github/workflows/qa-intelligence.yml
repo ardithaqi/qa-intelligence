@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_AI_KEY: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
+      # PR head commit, so file links in the guardian comment point at the PR's code.
+      RELEASE_GUARDIAN_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     defaults:
       run:
         working-directory: playwright
