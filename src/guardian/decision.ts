@@ -1,0 +1,70 @@
+import type { ClassifiedFailure, FailureGroup, ReleaseDecision, RiskScore } from "./types";
+
+/** A new regression at or above this confidence blocks on its own. */
+export const BLOCK_CONFIDENCE = 70;
+/** Infrastructure failures above this share of the suite mean the run didn't really verify the PR. */
+export const INFRA_SHARE_LIMIT = 0.2;
+export const INFRA_COUNT_LIMIT = 5;
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function causeSuffix(group: FailureGroup | undefined): string {
+    if (!group || group.rootCauseKind !== "changed_file") return "";
+    const commit = group.commit ? `, commit ${group.commit.slice(0, 7)}` : "";
+    return ` Most likely source: ${group.rootCause} (${group.confidence}% confidence${commit}).`;
+}
+
+export function decideRelease(input: {
+    failures: ClassifiedFailure[];
+    groups: FailureGroup[];
+    risk: RiskScore;
+    testsAnalyzed?: number;
+}): { decision: ReleaseDecision; reason: string } {
+    const fresh = input.failures.filter((f) => f.lifecycle === "new");
+    const of = (c: string) => fresh.filter((f) => f.classification.category === c);
+    const regressions = of("regression");
+    const primary = input.groups.find((g) => g.category === "regression");
+
+    const confident = regressions.filter((f) => f.classification.confidence >= BLOCK_CONFIDENCE);
+    const highRisk = input.risk.level === "HIGH" || input.risk.level === "CRITICAL";
+
+    if (regressions.length > 0 && (confident.length > 0 || highRisk)) {
+        const areas = [...new Set(regressions.map((f) => f.area))];
+        return {
+            decision: "BLOCK",
+            reason:
+                `${plural(regressions.length, "new regression")} affecting ${areas.join(", ")}` +
+                ` (risk ${input.risk.level}, ${input.risk.score}/100).` +
+                causeSuffix(primary),
+        };
+    }
+
+    const concerns: string[] = [];
+    if (regressions.length > 0) concerns.push(`${plural(regressions.length, "possible regression")} with low confidence`);
+    if (of("unknown").length > 0) concerns.push(`${plural(of("unknown").length, "new failure")} that couldn't be classified`);
+    if (of("test_issue").length > 0) concerns.push(`${plural(of("test_issue").length, "broken test")}`);
+
+    const infra = of("infrastructure").length;
+    const total = input.testsAnalyzed ?? 0;
+    if (infra >= INFRA_COUNT_LIMIT || (total > 0 && infra / total > INFRA_SHARE_LIMIT)) {
+        concerns.push(`${plural(infra, "infrastructure failure")} — too much of the suite didn't run to trust the result; rerun`);
+    }
+    if (concerns.length === 0 && input.risk.score >= 30) concerns.push(`risk is ${input.risk.level}`);
+
+    if (concerns.length > 0) {
+        return { decision: "REVIEW REQUIRED", reason: `Needs a human look: ${concerns.join("; ")}.` };
+    }
+
+    if (fresh.length === 0) {
+        return { decision: "SAFE TO MERGE", reason: "No new failures introduced by this PR." };
+    }
+
+    const parts = [
+        of("flaky").length ? plural(of("flaky").length, "flaky test") : "",
+        infra ? plural(infra, "infrastructure failure") : "",
+    ].filter(Boolean);
+    return {
+        decision: "SAFE TO MERGE",
+        reason: `Only known-noise failures (${parts.join(", ")}); no regressions introduced by this PR.`,
+    };
+}
