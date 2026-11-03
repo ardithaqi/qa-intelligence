@@ -1,13 +1,13 @@
 {
     "name": "qa-intelligence",
-    "version": "1.5.3",
+    "version": "2.0.0",
     "engines": {
         "node": ">=18"
     },
     "publishConfig": {
         "access": "public"
     },
-    "description": "CI intelligence engine for test pipelines. Detects regressions, flaky tests, and failure lifecycle in pull requests.",
+    "description": "AI Release Guardian: classifies Playwright CI failures, groups them by probable root cause, scores release risk and decides whether a PR is safe to merge.",
     "keywords": [
         "ci",
         "qa",
@@ -15,7 +15,10 @@
         "playwright",
         "regression-detection",
         "flaky-tests",
-        "qa-intelligence"
+        "qa-intelligence",
+        "ai-release-guardian",
+        "release-risk",
+        "root-cause-analysis"
     ],
     "license": "MIT",
     "repository": {

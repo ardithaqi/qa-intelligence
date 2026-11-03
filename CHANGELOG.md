@@ -2,6 +2,56 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.0 — AI Release Guardian
+
+The product is now **AI Release Guardian**. The npm package name, imports, existing CLIs and their
+output files are unchanged. There are no breaking API changes. The major version marks the new
+merge-gate behavior in the scaffolded workflow.
+
+### Added
+
+- `ai-release-guardian` CLI (`analyze`, `comment`, `init`):
+  - classifies each failure as `regression`, `flaky`, `infrastructure`, `test_issue` or `unknown`,
+    with a confidence and the evidence behind it (retries, base-branch status, history, error
+    signatures, related code changes, AI agreement)
+  - groups failures by probable root cause: same implicated changed file, else same normalized error
+  - attributes failures to likely changed files and commits from `git diff base...HEAD`, with capped
+    heuristic confidence
+  - computes a deterministic 0–100 release risk score (LOW / MEDIUM / HIGH / CRITICAL) that lists
+    every point it added
+  - makes a final **SAFE TO MERGE / REVIEW REQUIRED / BLOCK** decision with a reason
+  - `--fail-on review|block|never` merge gate (`RELEASE_GUARDIAN_FAIL_ON`)
+  - writes `release-report.json` and `release-guardian.md`; posts an "AI Release Guardian" PR comment
+- Optional `release-guardian.config.json` for product areas and critical areas
+- Playwright reporter writes `artifacts/run-summary.json` (test totals by final outcome)
+- Programmatic API: `analyzeRelease`, `classifyFailure`, `attributeFailure`, `groupFailures`,
+  `scoreRisk`, `decideRelease`, `collectChanges`, `formatReleaseComment`, `readRunSummary`,
+  `inferFailureType`, `formatDiffSections` and types
+- `RELEASE_GUARDIAN_TEARDOWN_LOGS` alias for `QA_INTELLIGENCE_TEARDOWN_LOGS`
+
+### Changed
+
+- `computeDiff` no longer needs AI output: when a failed attempt has `meta.json` but no `ai.txt`,
+  the failure type is inferred from the Playwright error. Failures now carry `title`, `errorMessage`,
+  `project`, `retry`, `url` and `source` (`ai` | `heuristic`)
+- Scaffolded workflow: `fetch-depth: 0`; diff, history and comment run without an AI key; the
+  guardian owns the gate (`--fail-on review`) and `qa-intelligence-diff` runs with
+  `--fail-on-blocking false`; adds a job summary and a release-report artifact
+- `qa-intelligence-comment` and the guardian update an existing bot comment under either header,
+  and look past the first 100 PR comments
+- One `Failure` type in `src/lib/types.ts`; `EnrichedFailure` and the `Failure` export of
+  `computeDiff` are now aliases of it
+
+### Fixed
+
+- `qa-intelligence-history` dropped `blockingFailures` and any extra fields when rewriting
+  `failure-diff.json`
+- Scaffolded workflow: merge-time reuse downloaded an artifact name the PR run never uploads
+  (`ai-failure-artifacts`), so it always re-ran the suite
+- Published package excludes `templates/**/node_modules` and `templates/**/package-lock.json`
+  (a local install in the template folder could otherwise ship tens of MB)
+- `npm test` glob is quoted so `src/index.test.ts` and nested test files actually run
+
 ## 1.5.3
 
 ### Fixed

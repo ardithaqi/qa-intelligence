@@ -1,12 +1,22 @@
-# QA Intelligence — Agent Guide
+# AI Release Guardian — Agent Guide
 
-This file orients AI agents working on **qa-intelligence** (`qa-ci-intelligence` repo). Read it before planning features, refactors, or docs.
+This file orients AI agents working on **AI Release Guardian** (npm `qa-intelligence`, repo `qa-ci-intelligence`; formerly "QA Intelligence"). Read it before planning features, refactors, or docs.
 
 ## Project summary
 
-**qa-intelligence** is the CI intelligence engine for Playwright pipelines. It is published to npm and consumed standalone or via the [qa-intelligence-framework](https://github.com/ardithaqi/qa-intelligence-framework) template.
+**AI Release Guardian** is a release-quality agent for Playwright CI. It classifies failures, groups them by probable root cause, attributes them to changed files/commits, scores release risk and decides SAFE TO MERGE / REVIEW REQUIRED / BLOCK. It is published to npm as `qa-intelligence` (name kept for compatibility) and consumed standalone or via the [qa-intelligence-framework](https://github.com/ardithaqi/qa-intelligence-framework) template.
 
-Core capabilities:
+Guardian pipeline (all deterministic, no AI required):
+
+```
+meta.json / ai.txt → computeDiff → enrichDiffWithHistory → analyzeRelease
+  analyzeRelease: attributeFailure → classifyFailure → groupFailures → scoreRisk → decideRelease
+  → formatReleaseComment → PR comment / job summary; exit code per --fail-on
+```
+
+Rules for guardian code: keep classification/scoring/decision pure and deterministic; every verdict carries human-readable reasons; never report 100% confidence; AI output is input evidence only.
+
+Core capabilities (from v1):
 
 - AI-powered failure analysis (Playwright hooks → `meta.json` → `ai.txt`)
 - PR failure diff: new, flaky, still failing, fixed
@@ -21,10 +31,11 @@ Core capabilities:
 | Playwright hooks | `src/playwright/` |
 | AI analysis | `src/ai/failureAnalyzer.ts`, `src/ai/getProvider.ts`, `src/ai/providers/` |
 | AI cost tracking | `src/ai/estimateCost.ts` (per-call USD estimate), `src/ai/aiSummary.ts` (run rollup), `src/playwright/reporter.ts` (prints rollup via `qa-intelligence/playwright/reporter`) — wired together in `src/playwright/globalTeardown.ts`'s `runAiTeardown` |
-| Diff engine | `src/lib/computeDiff.ts`, `src/lib/failureIdentity.ts` |
+| Diff engine | `src/lib/computeDiff.ts`, `src/lib/failureIdentity.ts`, `src/lib/failureSignals.ts` (error → failure_type without AI, error signatures) |
+| Release guardian | `src/guardian/` — `analyzeRelease.ts` (orchestrator), `classify.ts`, `attribution.ts` (changed-file + area detection), `group.ts`, `risk.ts` (`RISK_WEIGHTS`), `decision.ts`, `gitContext.ts`, `runSummary.ts`, `config.ts`, `format.ts`, `types.ts` |
 | PR comment formatting | `src/lib/format.ts` |
 | Programmatic API | `src/index.ts` — `computeDiff`, `formatDiffComment`, history helpers |
-| CLI tools | `src/cli/` (`init`, `diff`, `history`, `postComment`) |
+| CLI tools | `src/cli/` (`init`, `diff`, `history`, `postComment`, `guardian`) |
 | Init templates | `templates/` |
 | Env validation | `src/config/env.ts` |
 
@@ -33,7 +44,8 @@ Core capabilities:
 - `qa-intelligence init` — scaffold `playwright/` + `.github/workflows/qa-intelligence.yml` from `templates/`
 - `qa-intelligence-diff` — compare baseline vs current failures
 - `qa-intelligence-history` — enrich diff with recurrence; persists `.cache/failure-history.json`
-- `qa-intelligence-comment` — post/update GitHub PR summary comment
+- `qa-intelligence-comment` — post/update GitHub PR summary comment (legacy diff format)
+- `ai-release-guardian analyze|comment|init` — release assessment, PR comment, scaffold
 
 ### Publishing to npm
 
@@ -52,10 +64,26 @@ Only `dist/` and `templates/` ship to npm (`files` in `package.json`). GitHub wo
 ### Conventions
 
 - Match existing TypeScript style: strict types, minimal abstraction, focused diffs
-- `Failure` types are duplicated today — prefer centralizing in `src/lib/types.ts` when touching related code
+- `Failure` lives in `src/lib/types.ts` (other modules re-export/alias it); guardian types in `src/guardian/types.ts`
 - Users must import `test` / `expect` from `qa-intelligence/playwright`, not `@playwright/test` directly
 - Package ships compiled `dist/` only; run `npm run build` after source changes
 - Do not commit secrets (`.env`, API keys)
+
+---
+
+## Guardian v3 extension points
+
+Planned v3 features should plug into these seams rather than adding parallel pipelines:
+
+| v3 feature | Hook |
+|------------|------|
+| Jira/GitHub issues, Slack/Teams | Consume `ReleaseReport` (`release-report.json`) — `groups[]` is the unit for one issue/notification |
+| Quarantine / flaky health | `classifyFailure` flaky reasons + `computeFlakyWatchlist`; extend `RunRecord` with optional fields (keep old caches loadable) |
+| Learning from past classifications, recurring root causes | Persist `groups[].rootCause` per run in the history cache |
+| Ownership / CODEOWNERS | Map `Attribution.path` → owner in `analyzeRelease` |
+| Repo rules, merge policies | `GuardianConfig` (`release-guardian.config.json`) + `decideRelease` thresholds |
+| AI root-cause narrative | Optional step after `groupFailures`; may add text, must not change decision |
+| MCP / dashboard / API | Read `release-report.json` (`schemaVersion: 1`); bump the version on breaking shape changes |
 
 ---
 

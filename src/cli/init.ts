@@ -88,7 +88,7 @@ export async function main() {
     const force = hasFlag("force");
     const noCi = hasFlag("no-ci");
 
-    console.log("Scaffolding qa-intelligence in:", process.cwd());
+    console.log("Scaffolding AI Release Guardian (qa-intelligence) in:", process.cwd());
 
     const { written, skipped } = runInit({
         force,
