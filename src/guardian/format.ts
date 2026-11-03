@@ -134,7 +134,7 @@ function problemDetails(group: FailureGroup, options: CommentOptions): string {
     for (const item of group.failures) {
         const f = item.failure;
         const extras = [f.title ? md(f.title) : "", f.project ? md(f.project) : ""].filter(Boolean).join(" · ");
-        lines.push(`- ${testLink(options, f)}${extras ? ` — ${extras}` : ""}`);
+        lines.push(`- ${testLink(options, f)}${extras ? ` · ${extras}` : ""}`);
     }
 
     const cause = causeOf(group);
@@ -154,9 +154,9 @@ function problemDetails(group: FailureGroup, options: CommentOptions): string {
 
     const error = stripAnsi(group.failures[0].failure.errorMessage ?? "").trim();
     if (error) {
-        const lines = error.split("\n").filter((l) => l.trim());
-        const callLog = lines.findIndex((l) => /^\s*Call log:/.test(l));
-        const snippet = (callLog >= 0 ? lines.slice(0, callLog) : lines).slice(0, 6).join("\n");
+        const errorLines = error.split("\n").filter((l) => l.trim());
+        const callLog = errorLines.findIndex((l) => /^\s*Call log:/.test(l));
+        const snippet = (callLog >= 0 ? errorLines.slice(0, callLog) : errorLines).slice(0, 6).join("\n");
         lines.push("", "```", snippet.replace(/```/g, "'''"), "```");
     }
 
@@ -173,8 +173,10 @@ function countsLine(report: ReleaseReport, options: CommentOptions): string {
     const c = report.counts;
     const fresh = c.regression + c.flaky + c.infrastructure + c.test_issue + c.unknown;
     const parts = [
-        report.testsAnalyzed != null ? `${report.testsAnalyzed} tests` : "",
-        fresh ? `${fresh} new failure${fresh === 1 ? "" : "s"}` : "no new failures",
+        report.testsAnalyzed != null
+            ? report.failureCount === 0 ? `all ${report.testsAnalyzed} tests passed` : `${report.testsAnalyzed} tests`
+            : "",
+        fresh ? `${fresh} new failure${fresh === 1 ? "" : "s"}` : report.failureCount === 0 && report.testsAnalyzed != null ? "" : "no new failures",
         report.preExistingCount ? `${report.preExistingCount} still failing from main` : "",
         report.fixedCount ? `${report.fixedCount} fixed` : "",
         options.runUrl ? `[CI run](${options.runUrl})` : "",
@@ -184,6 +186,7 @@ function countsLine(report: ReleaseReport, options: CommentOptions): string {
 
 function moreSection(report: ReleaseReport, diff: DiffResult | undefined, options: CommentOptions): string {
     const out: string[] = [];
+    const safe = report.decision === "SAFE TO MERGE";
 
     const existing = report.failures.filter((f) => f.lifecycle === "existing");
     if (existing.length) {
@@ -199,17 +202,20 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
         out.push("");
     }
 
-    out.push(`**Risk ${report.risk.score}/100:** ${report.risk.reasons.map(md).join(", ")}`);
-    out.push("<sub>0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL</sub>");
-
-    if (report.warnings.length) {
-        out.push("", ...report.warnings.map((w) => `<sub>⚠ ${md(w)}</sub>`));
+    if (!safe) {
+        out.push(`**Risk ${report.risk.score}/100:** ${report.risk.reasons.map(md).join(", ")}`);
+        out.push("<sub>0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL</sub>");
+        if (report.warnings.length) {
+            out.push("", ...report.warnings.map((w) => `<sub>⚠ ${md(w)}</sub>`));
+        }
     }
+
+    if (out.length === 0) return "";
 
     const label = [
         existing.length ? `still failing (${existing.length})` : "",
         fixed.length ? `fixed (${fixed.length})` : "",
-        "score",
+        safe ? "" : "score",
     ].filter(Boolean).join(", ");
 
     return `<details><summary>More: ${label}</summary>\n\n${out.join("\n")}\n\n</details>\n`;
@@ -225,8 +231,12 @@ export function formatReleaseComment(
     const icon = DECISION_ICON[report.decision];
 
     let body = `${GUARDIAN_COMMENT_HEADER}\n\n`;
-    body += `### ${icon} ${report.decision} · ${report.risk.level} risk (${report.risk.score}/100)\n\n`;
-    body += `${md(report.decisionReason)}\n\n`;
+    // SAFE needs no risk score; the verdict says it all.
+    body += report.decision === "SAFE TO MERGE"
+        ? `### ${icon} ${report.decision}\n\n`
+        : `### ${icon} ${report.decision} · ${report.risk.level} risk (${report.risk.score}/100)\n\n`;
+    // A clean run needs no sentence: the counts line already says every test passed.
+    if (report.failureCount > 0 || report.fixedCount > 0) body += `${md(report.decisionReason)}\n\n`;
     body += `<sub>${countsLine(report, options)}${commit ? ` · ${codeMd(shortSha(commit))}` : ""}</sub>\n\n`;
 
     const shown = report.groups.slice(0, MAX_PROBLEM_LINES);

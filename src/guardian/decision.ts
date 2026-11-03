@@ -45,7 +45,7 @@ export function decideRelease(input: {
     const infra = of("infrastructure").length;
     const total = input.testsAnalyzed ?? 0;
     if (infra >= INFRA_COUNT_LIMIT || (total > 0 && infra / total > INFRA_SHARE_LIMIT)) {
-        concerns.push(`${plural(infra, "test")} couldn't reach the environment — rerun before trusting this result`);
+        concerns.push(`${plural(infra, "test")} couldn't reach the environment, rerun before trusting this result`);
     }
     if (concerns.length === 0 && input.risk.score >= 30) concerns.push(`risk is ${input.risk.level}`);
 
@@ -63,6 +63,6 @@ export function decideRelease(input: {
     ].filter(Boolean);
     return {
         decision: "SAFE TO MERGE",
-        reason: `No regressions. Only ${parts.join(" and ")}, which don't block.`,
+        reason: `No regressions. Only ${parts.join(" and ")}, which ${fresh.length === 1 ? "doesn't" : "don't"} block.`,
     };
 }

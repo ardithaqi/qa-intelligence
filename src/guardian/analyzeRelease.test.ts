@@ -268,9 +268,35 @@ describe("formatReleaseComment", () => {
 
     it("renders a clean SAFE summary", () => {
         const md = formatReleaseComment(analyzeRelease(diff()), undefined, { commit: "" });
-        assert.match(md, /✅ SAFE TO MERGE · LOW risk \(0\/100\)/);
-        assert.match(md, /No new failures/);
-        assert.equal((md.match(/<summary>/g) ?? []).length, 1, "only the More section");
+        assert.match(md, /### ✅ SAFE TO MERGE\n/);
+        assert.doesNotMatch(md, /risk/i, "no risk score on a safe PR");
+        assert.equal((md.match(/<summary>/g) ?? []).length, 0, "nothing to expand");
+    });
+
+    it("all-green with totals is just the verdict and one line", () => {
+        const report = analyzeRelease(diff(), { runSummary: { total: 248, passed: 248, failed: 0, flaky: 0, skipped: 0 } });
+        const md = formatReleaseComment(report, undefined, { commit: "" });
+        assert.equal(md, "## AI Release Guardian\n\n### ✅ SAFE TO MERGE\n\n<sub>all 248 tests passed</sub>\n\n");
+    });
+
+    it("safe with a flaky test says SAFE once and shows no score", () => {
+        const md = formatReleaseComment(analyzeRelease(diff({ newFailures: [flakyNoise] })), undefined, { commit: "" });
+        assert.equal((md.match(/SAFE TO MERGE/g) ?? []).length, 1);
+        assert.doesNotMatch(md, /risk|score/i);
+    });
+
+    it("expanded details show the error up to Playwright's call log", () => {
+        const failure = f("tests/checkout.spec.ts", {
+            errorMessage: 'Error: expect(locator).toHaveText(expected) failed\n\nExpected: "30"\nReceived: "20"\n\nCall log:\n  - waiting for locator',
+        });
+        const md = formatReleaseComment(analyzeRelease(diff({ newFailures: [failure] })), undefined, { commit: "" });
+        assert.match(md, /```\nError: expect\(locator\)\.toHaveText\(expected\) failed\nExpected: "30"\nReceived: "20"\n```/);
+        assert.doesNotMatch(md, /Call log/);
+    });
+
+    it("never writes an em dash", () => {
+        const busy = analyzeRelease(diff({ newFailures: [f("tests/login.spec.ts", { title: "t" }), flakyNoise, infraNoise], unchangedFailures: [f("tests/legacy.spec.ts")] }));
+        assert.doesNotMatch(formatReleaseComment(busy) + busy.decisionReason, /\u2014/);
     });
 
     it("stays short with many problems: 10 lines, the rest collapsed", () => {

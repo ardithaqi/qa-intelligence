@@ -25,7 +25,7 @@ function browserSuffix(f: Failure): string {
 /**
  * Deterministic, rule-based classification. Rules run in priority order and
  * every result carries the evidence that produced it. AI output is used only
- * as one input (failure_type, confidence) — never as the verdict itself.
+ * as one input (failure_type, confidence) - never as the verdict itself.
  */
 export function classifyFailure(input: ClassifyInput): Classification {
     const { failure, lifecycle, attribution, history } = input;
@@ -33,7 +33,7 @@ export function classifyFailure(input: ClassifyInput): Classification {
     const attempts = (failure.retry ?? 0) + 1;
     const sourceAttribution = attribution?.kind !== "test_file" ? attribution : undefined;
 
-    // 1. Passed on retry in this very run — the strongest flakiness evidence there is.
+    // 1. Passed on retry in this very run - the strongest flakiness evidence there is.
     if (failure.is_flaky_suspected) {
         const reasons = [`Failed, then passed on retry${browserSuffix(failure)}.`];
         let confidence = 88;
@@ -85,7 +85,7 @@ export function classifyFailure(input: ClassifyInput): Classification {
         };
     }
 
-    // 4. Already failing on the base branch — real or not, this PR did not introduce it.
+    // 4. Already failing on the base branch - real or not, this PR did not introduce it.
     if (lifecycle === "existing") {
         if (history) {
             return {
@@ -97,7 +97,7 @@ export function classifyFailure(input: ClassifyInput): Classification {
         return {
             category: DETERMINISTIC_TYPES.has(failure.failure_type) ? "regression" : "unknown",
             confidence: 60,
-            reasons: ["Also failing on the base branch — pre-existing, not introduced by this PR."],
+            reasons: ["Also failing on the base branch, so this PR did not introduce it."],
         };
     }
 
@@ -111,7 +111,7 @@ export function classifyFailure(input: ClassifyInput): Classification {
         confidence = 65;
     } else if (failure.failure_type === "timeout") {
         if (!sourceAttribution || history) {
-            reasons.push("Timed out with no other evidence — could be slowness, environment or a regression.");
+            reasons.push("Timed out with no other evidence. Could be slowness, the environment or a regression.");
             if (history) reasons.push(historyReason(history));
             return { category: history ? "flaky" : "unknown", confidence: history ? 60 : 40, reasons };
         }
