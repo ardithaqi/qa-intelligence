@@ -6,3 +6,5 @@ playwright-report/
 .cache/
 failure-diff.json
 baseline-artifacts/
+release-report.json
+release-guardian.md

@@ -1,4 +1,4 @@
-name: QA Intelligence CI
+name: AI Release Guardian
 
 on:
   push:
@@ -30,6 +30,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history so the guardian can see which files/commits the PR changed.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -80,7 +83,8 @@ jobs:
         uses: dawidd6/action-download-artifact@v21
         with:
           run_id: ${{ steps.source-pr.outputs.run_id }}
-          name: ai-failure-artifacts
+          # Must match the PR run's "Upload failure artifacts" name below.
+          name: playwright-artifacts-${{ steps.source-pr.outputs.run_id }}
           path: reused-artifacts
           if_no_artifact_found: ignore
 
@@ -182,12 +186,17 @@ jobs:
             echo "No baseline yet — expected until this workflow merges and runs on push to the default branch."
           fi
 
+      # --- AI Release Guardian -------------------------------------------------
+      # Works with or without an AI key: without one, failures are classified
+      # from Playwright's error output; with one, AI analysis adds evidence.
+
       - name: Compute failure diff
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
-        run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        # The guardian step below owns the merge gate.
+        run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts --fail-on-blocking false
 
       - name: Restore failure history cache
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         uses: actions/cache@v4
         with:
           path: playwright/.cache
@@ -203,16 +212,43 @@ jobs:
             failure-history-${{ github.repository }}-
 
       - name: Update failure history (recurrence)
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         run: npx qa-intelligence-history
 
-      - name: Comment PR with AI summary
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
+      - name: Assess release risk
+        id: guardian
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        # --fail-on review: fail the job on BLOCK or REVIEW REQUIRED (recommended).
+        #           block:  fail only on BLOCK.   never: report only.
+        run: |
+          npx ai-release-guardian analyze \
+            --current artifacts \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --fail-on review
+
+      - name: Write job summary
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        run: if [ -f release-guardian.md ]; then cat release-guardian.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Comment PR with release assessment
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          npx qa-intelligence-comment \
-            --diff failure-diff.json \
-            --repo ${{ github.repository }} \
-            --pr ${{ github.event.pull_request.number }} \
-            --token "$GITHUB_TOKEN"
+          if [ -f release-report.json ]; then
+            npx ai-release-guardian comment \
+              --report release-report.json \
+              --repo "${{ github.repository }}" \
+              --pr "${{ github.event.pull_request.number }}"
+          fi
+
+      - name: Upload release report
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-guardian-${{ github.run_id }}
+          path: |
+            playwright/release-report.json
+            playwright/release-guardian.md
+          retention-days: 14
+          if-no-files-found: ignore
