@@ -19,7 +19,18 @@ export type AiFailure = {
     confidence: number;
     first_seen?: string;
     occurrence_count?: number;
+    /** Run context carried from meta.json (optional; absent in pre-1.6 diffs). */
+    title?: string;
+    errorMessage?: string;
+    project?: string;
+    retry?: number;
+    url?: string;
+    /** "ai" when read from ai.txt, "heuristic" when inferred from meta.json without AI. */
+    source?: "ai" | "heuristic";
 };
+
+/** Canonical failure shape used by diff, history and guardian. */
+export type Failure = AiFailure;
 
 export type FailureKey = string;
 

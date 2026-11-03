@@ -2,25 +2,14 @@ import fs from "fs";
 import path from "path";
 import { computeFlakyWatchlist, filterWatchlistForCurrentDiff } from "./flakyWatchlist";
 import { failureDiffKey } from "./failureIdentity";
-import type { DiffResult, History, RunRecord } from "./types";
+import type { DiffResult, Failure, History, RunRecord } from "./types";
 
-export type { History, RunRecord } from "./types";
+export type { Failure, History, RunRecord } from "./types";
 
 export const MAX_RUNS = 20;
 
-export interface Failure {
-    file: string;
-    line: number;
-    failure_type: string;
-    severity: string;
-    confidence: number;
-    is_flaky_suspected?: boolean;
-}
-
-export interface EnrichedFailure extends Failure {
-    first_seen?: string;
-    occurrence_count?: number;
-}
+/** Kept for API compatibility; `first_seen` / `occurrence_count` now live on `Failure`. */
+export type EnrichedFailure = Failure;
 
 export function failureKey(f: Failure): string {
     return failureDiffKey(f.file, f.failure_type);

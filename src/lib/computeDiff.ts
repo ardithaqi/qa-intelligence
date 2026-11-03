@@ -6,22 +6,25 @@ import {
     parseAttemptFromAiPath,
     parseLocationFromStack,
 } from "./failureIdentity";
+import { inferFailureType, stripAnsi } from "./failureSignals";
+import type { Failure } from "./types";
 
-export interface Failure {
-    file: string;
-    line: number;
-    failure_type: string;
-    severity: string;
-    confidence: number;
-    is_flaky_suspected?: boolean;
-}
+export type { Failure } from "./types";
 
 interface MetaJson {
+    title?: string;
     stack?: string;
+    errorMessage?: string;
     is_flaky_suspected?: boolean;
+    severity?: string;
     file?: string;
     line?: number;
+    project?: string;
+    retry?: number;
+    url?: string;
 }
+
+const MAX_ERROR_CHARS = 2000;
 
 function extractTrailingJson(content: string): Partial<Failure> | null {
     const trimmed = content.trimEnd();
@@ -39,9 +42,7 @@ function extractTrailingJson(content: string): Partial<Failure> | null {
     return null;
 }
 
-function readMetaJson(aiTxtPath: string): MetaJson | null {
-    const metaPath = path.join(path.dirname(aiTxtPath), "meta.json");
-
+function readMetaJson(metaPath: string): MetaJson | null {
     if (!fs.existsSync(metaPath)) return null;
 
     try {
@@ -51,14 +52,10 @@ function readMetaJson(aiTxtPath: string): MetaJson | null {
     }
 }
 
-function resolveFailure(aiTxtPath: string): Failure | null {
-    const content = fs.readFileSync(aiTxtPath, "utf8");
-    const ai = extractTrailingJson(content);
-
-    if (!ai?.failure_type || typeof ai.severity !== "string") return null;
-    if (typeof ai.confidence !== "number") return null;
-
-    const meta = readMetaJson(aiTxtPath);
+function resolveLocation(
+    meta: MetaJson | null,
+    ai?: Partial<Failure> | null
+): { file: string; line: number } | null {
     const fromStack = parseLocationFromStack(meta?.stack);
     const fromMeta =
         typeof meta?.file === "string"
@@ -71,24 +68,73 @@ function resolveFailure(aiTxtPath: string): Failure | null {
               }
             : null;
 
-    const file = normalizeTestPath(
-        fromStack?.file ?? fromMeta?.file ?? (typeof ai.file === "string" ? ai.file : "")
-    );
+    const rawFile =
+        fromStack?.file ?? fromMeta?.file ?? (typeof ai?.file === "string" ? ai.file : "");
+    if (!rawFile) return null;
+
     const line =
         fromStack?.line ??
         fromMeta?.line ??
-        (typeof ai.line === "number" ? ai.line : Number(ai.line) || 0);
+        (typeof ai?.line === "number" ? ai.line : Number(ai?.line) || 0);
 
-    if (!file) return null;
+    return { file: normalizeTestPath(rawFile), line };
+}
+
+/** Run context from meta.json that downstream classification can use. */
+function metaContext(meta: MetaJson | null): Partial<Failure> {
+    if (!meta) return {};
+    const context: Partial<Failure> = {};
+    if (typeof meta.title === "string") context.title = meta.title;
+    if (typeof meta.errorMessage === "string" && meta.errorMessage) {
+        context.errorMessage = stripAnsi(meta.errorMessage).slice(0, MAX_ERROR_CHARS);
+    }
+    if (typeof meta.project === "string" && meta.project) context.project = meta.project;
+    if (typeof meta.retry === "number") context.retry = meta.retry;
+    if (typeof meta.url === "string" && meta.url) context.url = meta.url;
+    return context;
+}
+
+function resolveFailure(aiTxtPath: string): Failure | null {
+    const content = fs.readFileSync(aiTxtPath, "utf8");
+    const ai = extractTrailingJson(content);
+
+    if (!ai?.failure_type || typeof ai.severity !== "string") return null;
+    if (typeof ai.confidence !== "number") return null;
+
+    const meta = readMetaJson(path.join(path.dirname(aiTxtPath), "meta.json"));
+    const location = resolveLocation(meta, ai);
+    if (!location) return null;
 
     return {
-        file,
-        line,
+        ...location,
         failure_type: ai.failure_type,
         severity: ai.severity,
         confidence: ai.confidence,
         is_flaky_suspected:
             ai.is_flaky_suspected ?? meta?.is_flaky_suspected ?? false,
+        ...metaContext(meta),
+        source: "ai",
+    };
+}
+
+/** Fallback when AI analysis is disabled or failed: classify from meta.json alone. */
+function resolveFailureFromMeta(metaPath: string): Failure | null {
+    const meta = readMetaJson(metaPath);
+    if (!meta) return null;
+
+    const location = resolveLocation(meta);
+    if (!location) return null;
+
+    const failure_type = inferFailureType(meta.errorMessage);
+
+    return {
+        ...location,
+        failure_type,
+        severity: typeof meta.severity === "string" ? meta.severity : "medium",
+        confidence: failure_type === "unknown" ? 30 : 60,
+        is_flaky_suspected: meta.is_flaky_suspected ?? false,
+        ...metaContext(meta),
+        source: "heuristic",
     };
 }
 
@@ -97,8 +143,25 @@ function collectFailures(root: string): Failure[] {
 
     const bestByKey = new Map<string, { failure: Failure; attempt: number }>();
 
+    function consider(failure: Failure | null, filePath: string) {
+        if (!failure) return;
+
+        const key = failureDiffKey(failure.file, failure.failure_type);
+        const attempt = parseAttemptFromAiPath(
+            filePath.replace(/meta\.json$/, "ai.txt")
+        );
+        const existing = bestByKey.get(key);
+
+        if (!existing || attempt >= existing.attempt) {
+            bestByKey.set(key, { failure, attempt });
+        }
+    }
+
     function walk(dir: string) {
-        for (const file of fs.readdirSync(dir)) {
+        const entries = fs.readdirSync(dir);
+        const hasAiTxt = entries.includes("ai.txt");
+
+        for (const file of entries) {
             const full = path.join(dir, file);
 
             if (fs.statSync(full).isDirectory()) {
@@ -106,17 +169,10 @@ function collectFailures(root: string): Failure[] {
                 continue;
             }
 
-            if (file !== "ai.txt") continue;
-
-            const failure = resolveFailure(full);
-            if (!failure) continue;
-
-            const key = failureDiffKey(failure.file, failure.failure_type);
-            const attempt = parseAttemptFromAiPath(full);
-            const existing = bestByKey.get(key);
-
-            if (!existing || attempt >= existing.attempt) {
-                bestByKey.set(key, { failure, attempt });
+            if (file === "ai.txt") {
+                consider(resolveFailure(full), full);
+            } else if (file === "meta.json" && !hasAiTxt) {
+                consider(resolveFailureFromMeta(full), full);
             }
         }
     }
