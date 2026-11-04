@@ -167,7 +167,7 @@ export async function main() {
     console.log("  2. cd playwright && npm install");
     console.log("  3. npx playwright install");
     console.log("  4. Add an AI provider API key to GitHub repo secrets (for CI)");
-    console.log("     e.g. OPENAI_API_KEY, or ANTHROPIC_API_KEY with AI_PROVIDER=anthropic");
+    console.log("     e.g. OPENAI_API_KEY or ANTHROPIC_API_KEY (the provider follows the key)");
     if (!noCi) {
         console.log("  5. Update BASE_URL in .github/workflows/qa-intelligence.yml");
     }

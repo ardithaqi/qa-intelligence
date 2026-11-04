@@ -104,6 +104,12 @@ merge-gate behavior in the scaffolded workflow.
 - MCP `analyze_local`: says so when only part of the suite ran (and doesn't call the skipped tests
   fixed), refuses to judge a run that was stopped before it finished, and finds results at the repo
   root when Playwright ran from there (VS Code extension with the `init` layout)
+- MCP `get_pr_verdict`: tells "CI still running" apart from "CI ran but made no guardian report"
+  (no baseline on main yet), explains a token that can't see the repo instead of GitHub's bare
+  "Not Found", and with several `gh` accounts signed in uses the one named like the repo owner
+- Test files are type-checked: `tsconfig.json` covers them (editors no longer flag `node:` imports),
+  the package builds from `tsconfig.build.json`, and CI runs `npm run typecheck`
+- `init` no longer says `AI_PROVIDER=anthropic` is needed with an Anthropic key
 
 ## 1.5.3
 
