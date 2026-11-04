@@ -2,6 +2,31 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.6
+
+### Fixed
+
+MCP server, found by running it in a real work setup (company org repo, two GitHub accounts, many
+workflows):
+
+- **SSH host aliases:** a remote like `git@github-work:org/repo.git` (the usual way to use a work
+  and a personal account) wasn't recognized as GitHub, so `get_pr_verdict` and the CI baseline
+  didn't work. Aliases are resolved through `~/.ssh/config` (`ssh -G`, which connects nowhere), and
+  `ssh://`, `user@` and trailing-slash URLs are read too
+- **The right account:** for an org repo no `gh` account is named like the owner, so the active
+  account was used even when it couldn't see the repo. The server now tries each token (env, then
+  every signed-in `gh` account) and uses the first that can see the repo
+- **Busy repos:** reports and baselines were searched in the newest 10 or 20 runs, which deploys
+  and other workflows push out quickly. The repo's artifact list is searched instead (up to 500
+  newest uploads, fetched in parallel and cached for a minute): a first question went from 19s to
+  about 3s on a large repo
+- **Clearer answers when there's no CI result:** "still running" only counts the guardian's
+  workflow (once the repo has a report), a run skipped by the workflow's own conditions says so,
+  and a finished run without a report says why that can happen
+- `analyze_local` says which CI run its baseline came from, and warns when that run covered fewer
+  tests than the local one (e.g. smoke tests only), since failures in the other tests then show as
+  new
+
 ## 2.0.5
 
 ### Changed

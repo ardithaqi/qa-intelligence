@@ -46,17 +46,17 @@ describe("ai summary formatting", () => {
         assert.equal(
             formatCostRollupLine({
                 provider: "anthropic",
-                model: "claude-haiku-4-5",
+                model: "claude-haiku-5-5",
                 entries,
             }),
-            "AI analysis: 2 failures · anthropic (claude-haiku-4-5) · ~$0.003000 estimated"
+            "AI analysis: 2 failures · anthropic (claude-haiku-5-5) · ~$0.003000 estimated"
         );
     });
 
     it("writes a combined markdown summary", () => {
         const md = formatAiSummaryMarkdown({
             provider: "anthropic",
-            model: "claude-haiku-4-5",
+            model: "claude-haiku-5-5",
             entries,
         });
 
