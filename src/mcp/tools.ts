@@ -134,8 +134,22 @@ function parseSaved(json: string): { report: ReleaseReport; diff: DiffResult } {
 }
 
 export async function getPrVerdict(session: GuardianSession, pr?: number): Promise<string> {
-    const { cwd, github, githubProblem } = session.deps;
+    const { github, githubProblem } = session.deps;
     if (!github) return `Can't reach GitHub: ${githubProblem ?? "no client"}. For a local verdict, use analyze_local.`;
+    try {
+        return await prVerdict(session, github, pr);
+    } catch (err) {
+        const status = (err as { status?: number }).status;
+        const why =
+            status === 401 ? "the GitHub token is invalid or expired"
+            : status === 403 || status === 404 ? "the GitHub token can't see this repo (private repo and a token for another account? With several gh accounts: `gh auth switch`, or set GITHUB_TOKEN)"
+            : `GitHub request failed (${(err as Error).message})`;
+        return `Can't read the CI result: ${why}. For a local verdict, use analyze_local.`;
+    }
+}
+
+async function prVerdict(session: GuardianSession, github: GitHubClient, pr?: number): Promise<string> {
+    const { cwd } = session.deps;
 
     let number = pr;
     let sha: string | null = null;
@@ -153,7 +167,14 @@ export async function getPrVerdict(session: GuardianSession, pr?: number): Promi
 
     const zip = await github.artifactForCommit(sha, REPORT_ARTIFACT_PREFIX);
     const json = zip ? readFromZip(zip, "release-report.json") : null;
-    if (!json) return NO_CI;
+    if (!json) {
+        const statuses = await github.runStatusesForCommit(sha);
+        if (statuses.length === 0) return NO_CI;
+        if (statuses.some((s) => s !== "completed")) {
+            return `CI is still running for PR #${number} (commit ${sha.slice(0, 7)}). Try again when it finishes, or run analyze_local for a local verdict.`;
+        }
+        return `CI ran for PR #${number} (commit ${sha.slice(0, 7)}) but produced no guardian report. Usually main has no baseline yet: the guardian runs once the workflow has run on main. Run analyze_local for a local verdict.`;
+    }
 
     session.last = { source: `PR #${number} @ ${sha.slice(0, 7)}`, ...parseSaved(json) };
     let text = formatVerdictText(cwd, session.last);

@@ -48,6 +48,7 @@ function fakeGitHub(over: Partial<GitHubClient> = {}): GitHubClient & { calls: s
         prHeadSha: async (pr) => (calls.push(`prHeadSha ${pr}`), pr === 404 ? null : "2222222bbbb"),
         artifactForCommit: async (sha, prefix) => (calls.push(`artifactForCommit ${sha} ${prefix}`), null),
         artifactForBranch: async () => null,
+        runStatusesForCommit: async () => [],
         ...over,
     };
 }
@@ -86,6 +87,19 @@ describe("get_pr_verdict", () => {
     it("says there's no CI result yet and points to analyze_local", repo(async (root) => {
         const s = new GuardianSession({ cwd: root, github: fakeGitHub() });
         assert.equal(await getPrVerdict(s), "No CI result for this PR yet. Run analyze_local for a local verdict.");
+    }));
+
+    it("explains a token that can't see the repo instead of GitHub's bare Not Found", repo(async (root) => {
+        const notFound = Object.assign(new Error("Not Found"), { status: 404 });
+        const github = fakeGitHub({ findOpenPr: async () => { throw notFound; } });
+        assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github })), /^Can't read the CI result: the GitHub token can't see this repo .*gh auth switch/);
+    }));
+
+    it("tells a running CI apart from a finished run without a report", repo(async (root) => {
+        const running = fakeGitHub({ runStatusesForCommit: async () => ["in_progress"] });
+        assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github: running })), /^CI is still running for PR #7 \(commit 1111111\)/);
+        const noReport = fakeGitHub({ runStatusesForCommit: async () => ["completed"] });
+        assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github: noReport })), /^CI ran for PR #7 .* no guardian report\. Usually main has no baseline yet/);
     }));
 
     it("reads the CI report for the branch's PR and lists problems with ids", repo(async (root) => {

@@ -28,7 +28,7 @@ function packageVersion(): string {
 export function defaultDeps(cwd: string = process.cwd()): ToolDeps {
     const repo = repoFromGit(cwd);
     if (!repo) return { cwd, github: null, githubProblem: "no GitHub `origin` remote in this repo" };
-    const token = githubToken();
+    const token = githubToken(process.env, repo.owner);
     if (!token) return { cwd, github: null, githubProblem: "no token (set GITHUB_TOKEN or sign in with `gh auth login`)" };
     return { cwd, github: createGitHubClient(repo.owner, repo.repo, token) };
 }

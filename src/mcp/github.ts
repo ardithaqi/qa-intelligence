@@ -12,6 +12,8 @@ export interface GitHubClient {
     artifactForCommit(headSha: string, prefix: string): Promise<Uint8Array | null>;
     /** Zip of the newest artifact named `name` from push runs on `branch`. */
     artifactForBranch(branch: string, name: string): Promise<Uint8Array | null>;
+    /** Status of the workflow runs for a commit ("queued", "in_progress", "completed", ...). */
+    runStatusesForCommit(headSha: string): Promise<string[]>;
 }
 
 function git(args: string[], cwd: string): string {
@@ -56,14 +58,21 @@ export function defaultBaseRef(cwd: string): string {
 }
 
 /** GITHUB_TOKEN / GH_TOKEN, else the GitHub CLI's token if it's signed in. */
-export function githubToken(env: NodeJS.ProcessEnv = process.env): string | null {
+/**
+ * GITHUB_TOKEN / GH_TOKEN, else the GitHub CLI's token. With several `gh` accounts signed in
+ * (work + personal), the one named like the repo owner is preferred over the active one.
+ */
+export function githubToken(env: NodeJS.ProcessEnv = process.env, owner?: string): string | null {
     const fromEnv = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim();
     if (fromEnv) return fromEnv;
-    try {
-        return execFileSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
-    } catch {
-        return null;
-    }
+    const gh = (args: string[]) => {
+        try {
+            return execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+        } catch {
+            return null;
+        }
+    };
+    return (owner ? gh(["auth", "token", "-u", owner]) : null) ?? gh(["auth", "token"]);
 }
 
 /** First file in a zip whose path ends with `name`, as text. */
@@ -79,7 +88,8 @@ export function unzipAll(zip: Uint8Array): Record<string, Uint8Array> {
 }
 
 export function createGitHubClient(owner: string, repo: string, token: string): GitHubClient {
-    const octokit = new Octokit({ auth: token });
+    // Silent: stdout belongs to the MCP protocol, and errors are explained to the agent instead.
+    const octokit = new Octokit({ auth: token, log: { debug() {}, info() {}, warn() {}, error() {} } });
 
     async function download(artifactId: number): Promise<Uint8Array> {
         const res = await octokit.actions.downloadArtifact({ owner, repo, artifact_id: artifactId, archive_format: "zip" });
@@ -111,6 +121,10 @@ export function createGitHubClient(owner: string, repo: string, token: string): 
         async artifactForCommit(sha, prefix) {
             const { data } = await octokit.actions.listWorkflowRunsForRepo({ owner, repo, head_sha: sha, per_page: 10 });
             return newestArtifact(data.workflow_runs.map((r) => r.id), (n) => n.startsWith(prefix));
+        },
+        async runStatusesForCommit(sha) {
+            const { data } = await octokit.actions.listWorkflowRunsForRepo({ owner, repo, head_sha: sha, per_page: 10 });
+            return data.workflow_runs.map((r) => r.status ?? "unknown");
         },
         async artifactForBranch(branch, name) {
             const { data } = await octokit.actions.listWorkflowRunsForRepo({ owner, repo, branch, event: "push", status: "completed", per_page: 5 });
