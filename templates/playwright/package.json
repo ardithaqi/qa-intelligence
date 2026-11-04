@@ -6,7 +6,7 @@
   },
   "dependencies": {
     "@playwright/test": "^1.58.0",
-    "qa-intelligence": "^2.0.1"
+    "qa-intelligence": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0"
