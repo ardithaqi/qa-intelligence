@@ -259,6 +259,34 @@ describe("computeDiff", () => {
     });
 });
 
+describe("computeDiff reads every AI answer or falls back", () => {
+    const meta = { file: "tests/x.spec.ts", line: 3, retry: 1, errorMessage: 'Expected: "a"\nReceived: "b"' };
+    const writeAttempt = (current: string, aiTxt: string) => {
+        const dir = path.join(current, "x.spec.ts", "t", "attempt-1");
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify(meta));
+        fs.writeFileSync(path.join(dir, "ai.txt"), aiTxt);
+    };
+
+    it("reads the AI's JSON when it is wrapped in a ```json fence", () => {
+        withTempDirs((baseline, current) => {
+            writeAttempt(current, 'SECTION 2\n```json\n{\n  "failure_type": "timeout",\n  "severity": "high",\n  "confidence": 80,\n  "is_flaky_suspected": false\n}\n```\n');
+            const [f] = computeDiff(baseline, current).newFailures;
+            assert.equal(f.failure_type, "timeout");
+            assert.equal(f.source, "ai");
+        });
+    });
+
+    it("falls back to meta.json when ai.txt can't be read, so the failure isn't lost", () => {
+        withTempDirs((baseline, current) => {
+            writeAttempt(current, "The model answered without any JSON.");
+            const failures = computeDiff(baseline, current).newFailures;
+            assert.equal(failures.length, 1);
+            assert.equal(failures[0].source, "heuristic");
+        });
+    });
+});
+
 describe("computeDiff counts each test once", () => {
     it("keeps one record per test when its attempts were classified differently", () => {
         withTempDirs((baseline, current) => {

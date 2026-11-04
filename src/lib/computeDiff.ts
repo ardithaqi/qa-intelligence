@@ -27,7 +27,8 @@ interface MetaJson {
 const MAX_ERROR_CHARS = 2000;
 
 function extractTrailingJson(content: string): Partial<Failure> | null {
-    const trimmed = content.trimEnd();
+    // Models often wrap the JSON in a ```json fence; the closing fence would make it unparseable.
+    const trimmed = content.trimEnd().replace(/```\s*$/, "").trimEnd();
 
     for (
         let i = trimmed.lastIndexOf("{");
@@ -202,7 +203,10 @@ function collectFailures(dir: string): Failure[] {
             }
 
             if (file === "ai.txt") {
-                consider(resolveFailure(full), full);
+                // An ai.txt the parser can't read must not hide the failure: fall back to meta.json.
+                const meta = path.join(dir, "meta.json");
+                const fromMeta = () => (entries.includes("meta.json") ? resolveFailureFromMeta(meta) : null);
+                consider(resolveFailure(full) ?? fromMeta(), full);
             } else if (file === "meta.json" && !hasAiTxt) {
                 consider(resolveFailureFromMeta(full), full);
             }
