@@ -64,8 +64,8 @@
     },
     "peerDependencies": {
         "@playwright/test": ">=1.40.0",
-        "typescript": ">=5.0.0",
-        "@types/node": ">=18.0.0"
+        "@types/node": ">=18.0.0",
+        "typescript": ">=5.0.0"
     },
     "bin": {
         "qa-intelligence": "dist/cli/index.js",
@@ -97,8 +97,12 @@
     },
     "files": [
         "dist",
-        "templates",
-        "!templates/**/node_modules",
-        "!templates/**/package-lock.json"
+        "templates/github/workflows/qa-intelligence.yml",
+        "templates/playwright/.env.example",
+        "templates/playwright/gitignore",
+        "templates/playwright/package.json",
+        "templates/playwright/playwright.config.ts",
+        "templates/playwright/tests/example.spec.ts",
+        "templates/playwright/tsconfig.json"
     ]
 }

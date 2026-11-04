@@ -23,6 +23,19 @@ jobs:
 
       - run: npm run build
 
+      - name: Check the npm package contains no secrets or local junk
+        run: |
+          npm pack --dry-run --json --ignore-scripts > pack.json
+          node -e "
+            const files = require('./pack.json')[0].files.map((f) => f.path);
+            const bad = files.filter((p) => /(^|\/)\.env$|node_modules|artifacts\/|playwright-report|test-results|\.cache\//.test(p));
+            if (bad.length) { console.error('Refusing to publish:', bad); process.exit(1); }
+            console.log('npm package OK:', files.length, 'files');
+          "
+          if npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP" >/dev/null && tar -xzOf "$RUNNER_TEMP"/qa-intelligence-*.tgz | grep -E 'sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}'; then
+            echo 'Refusing to publish: something that looks like an API key is in the package'; exit 1
+          fi
+
       - name: Smoke test diff CLI against fixtures
         run: |
           node dist/cli/diff.js \

@@ -6,3 +6,6 @@ failure-diff.json
 .cache/
 release-report.json
 release-guardian.md
+artifacts/
+playwright-report/
+test-results/
