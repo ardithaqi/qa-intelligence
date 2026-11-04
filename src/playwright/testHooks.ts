@@ -1,13 +1,29 @@
 import { playwrightTest } from "./playwrightTest";
 
 const { test: base } = playwrightTest;
+import type { Page, TestInfo } from "@playwright/test";
 import fs from "fs";
 import { getLogFilePath } from "../reporting/logger";
 import path from "path";
 
-export const test = base;
+/**
+ * Records failures (and flaky passes) as artifacts/<run>/<spec>/<test>/attempt-N/meta.json.
+ *
+ * An auto fixture, not a module-level test.afterEach: a hook registered at import time
+ * attaches only to the first spec file that imports this module in each worker, so
+ * failures in every later file of that worker were silently not recorded.
+ */
+export const test = base.extend<{ _qaIntelligenceFailureRecorder: void }>({
+  _qaIntelligenceFailureRecorder: [
+    async ({ page }, use, testInfo) => {
+      await use();
+      await recordFailure(page, testInfo);
+    },
+    { auto: true },
+  ],
+});
 
-test.afterEach(async ({ page }, testInfo) => {
+export async function recordFailure(page: Page, testInfo: TestInfo): Promise<void> {
   const logFile = getLogFilePath();
   if (fs.existsSync(logFile)) {
     await testInfo.attach("run.log", {
@@ -89,4 +105,4 @@ test.afterEach(async ({ page }, testInfo) => {
       JSON.stringify(meta, null, 2)
     );
   }
-});
+}

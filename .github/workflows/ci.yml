@@ -19,6 +19,9 @@ jobs:
 
       - run: npm install
 
+      # A test runs real Playwright to check every failure gets recorded.
+      - run: npx playwright install --with-deps chromium
+
       - run: npm test
 
       - run: npm run build
