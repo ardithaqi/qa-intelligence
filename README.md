@@ -284,6 +284,7 @@ All tools are read-only: nothing is written to the repo or posted to GitHub, and
 | `ai-release-guardian analyze` | Classify, group, attribute, score and decide; writes `release-report.json` + `release-guardian.md`; exit code per `--fail-on` |
 | `ai-release-guardian comment` | Post/update the PR comment from `release-report.json` |
 | `ai-release-guardian init` | Same as `qa-intelligence init` |
+| `ai-release-guardian mcp` | MCP server for AI assistants (see [AI assistants (MCP)](#ai-assistants-mcp)) |
 | `qa-intelligence init` | Scaffold project files |
 | `qa-intelligence-diff` | Compare baseline vs current failures → `failure-diff.json` |
 | `qa-intelligence-history` | Recurrence tracking |
@@ -303,6 +304,8 @@ npx ai-release-guardian comment --repo owner/repo --pr 123   # uses $GITHUB_TOKE
 ### Upgrading from QA Intelligence 1.x
 
 Nothing breaks: same package name, imports, commands and output files. To get the guardian, re-run `npx qa-intelligence init --force` (it overwrites the scaffold files, so back up any local edits), or add the `analyze` and `comment` steps above to your workflow. The guardian updates the existing PR comment in place, whether it has the old or the new header.
+
+1.x missed some failures: a failure in a spec file that wasn't the first one a Playwright worker loaded wrote no record (with retries, only the retry was recorded). 2.0 records every failure, so the first runs after upgrading can show failures that were already there. They show up as "still failing from main" once main has run on 2.0 too.
 
 ---
 

@@ -36,6 +36,7 @@ Core capabilities (from v1):
 | PR comment formatting | `src/lib/format.ts` |
 | Programmatic API | `src/index.ts` - `computeDiff`, `formatDiffComment`, history helpers |
 | CLI tools | `src/cli/` (`init`, `diff`, `history`, `postComment`, `guardian`) |
+| MCP server | `src/mcp/` (`server.ts`, `tools.ts`, `github.ts`), docs in `docs/mcp.md` |
 | Init templates | `templates/` |
 | Env validation | `src/config/env.ts` |
 
@@ -45,7 +46,7 @@ Core capabilities (from v1):
 - `qa-intelligence-diff` - compare baseline vs current failures
 - `qa-intelligence-history` - enrich diff with recurrence; persists `.cache/failure-history.json`
 - `qa-intelligence-comment` - post/update GitHub PR summary comment (legacy diff format)
-- `ai-release-guardian analyze|comment|init` - release assessment, PR comment, scaffold
+- `ai-release-guardian analyze|comment|init|mcp` - release assessment, PR comment, scaffold, MCP server for AI assistants
 
 ### Publishing to npm
 
@@ -57,7 +58,7 @@ Before each release, update in order:
 4. **`AGENTS.md`** - if architecture, paths, or agent conventions changed
 5. **`templates/`** - if scaffold defaults changed (e.g. workflow, `playwright/package.json` version pin)
 
-Then: `npm test` → `npm run build` → `git commit` → `git push` → `npm publish`.
+Then: `npm run typecheck` → `npm test` → `npm run build` → `git commit` → `git push` → `npm publish`.
 
 Only `dist/` and `templates/` ship to npm (`files` in `package.json`). GitHub workflow in *this* repo (`.github/workflows/ci.yml`) is maintainer CI only.
 
@@ -66,7 +67,8 @@ Only `dist/` and `templates/` ship to npm (`files` in `package.json`). GitHub wo
 - Match existing TypeScript style: strict types, minimal abstraction, focused diffs
 - `Failure` lives in `src/lib/types.ts` (other modules re-export/alias it); guardian types in `src/guardian/types.ts`
 - Users must import `test` / `expect` from `qa-intelligence/playwright`, not `@playwright/test` directly
-- Package ships compiled `dist/` only; run `npm run build` after source changes
+- Package ships compiled `dist/` only; run `npm run build` after source changes. `tsconfig.json` covers tests (editor + `npm run typecheck`), `tsconfig.build.json` builds without them
+- Failure recording is an auto fixture in `src/playwright/testHooks.ts`, never a module-level `test.afterEach` (that attaches only to the first spec file per worker)
 - Do not commit secrets (`.env`, API keys)
 
 ---
