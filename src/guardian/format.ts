@@ -182,7 +182,7 @@ function countsLine(report: ReleaseReport, options: CommentOptions): string {
     const fresh = c.regression + c.flaky + c.infrastructure + c.test_issue + c.unknown;
     const parts = [
         report.testsAnalyzed != null
-            ? report.failureCount === 0 ? `all ${report.testsAnalyzed} tests passed` : `${report.testsAnalyzed} tests`
+            ? report.failureCount === 0 && !report.failedInRun ? `all ${report.testsAnalyzed} tests passed` : `${report.testsAnalyzed} tests`
             : "",
         fresh ? `${fresh} new failure${fresh === 1 ? "" : "s"}` : report.failureCount === 0 && report.testsAnalyzed != null ? "" : "no new failures",
         report.preExistingCount ? `${report.preExistingCount} still failing from main` : "",

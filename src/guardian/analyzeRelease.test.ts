@@ -223,6 +223,21 @@ describe("analyzeRelease", () => {
         assert.equal(report.primaryGroup, undefined);
     });
 
+    it("never says SAFE when Playwright reports failed tests but none were recorded", () => {
+        const report = analyzeRelease(diff({}), { runSummary: { total: 2, passed: 0, failed: 2, flaky: 0, skipped: 0 } });
+        assert.equal(report.decision, "REVIEW REQUIRED");
+        assert.match(report.decisionReason, /2 tests failed, but no failure details were recorded/);
+        const md = formatReleaseComment(report);
+        assert.doesNotMatch(md, /all 2 tests passed/);
+        assert.doesNotMatch(md, /SAFE TO MERGE/);
+    });
+
+    it("a fully green run is still SAFE", () => {
+        const report = analyzeRelease(diff({}), { runSummary: { total: 2, passed: 2, failed: 0, flaky: 0, skipped: 0 } });
+        assert.equal(report.decision, "SAFE TO MERGE");
+        assert.match(formatReleaseComment(report), /all 2 tests passed/);
+    });
+
     it("pre-existing failures alone don't block or add risk", () => {
         const report = analyzeRelease(diff({ unchangedFailures: [f("tests/login.spec.ts")] }));
         assert.equal(report.decision, "SAFE TO MERGE");
