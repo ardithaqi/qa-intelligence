@@ -91,6 +91,19 @@ merge-gate behavior in the scaffolded workflow.
   API key, which has to be revoked) and thousands of `node_modules` files. CI now fails if the
   package would contain a `.env`, `node_modules`, test output or anything that looks like an API key
 - `npm test` glob is quoted so `src/index.test.ts` and nested test files actually run
+- **Failures went unrecorded:** the failure hook was a module-level `test.afterEach`, which
+  Playwright attaches only to the first spec file that imports it in each worker. A failure in any
+  later file of the same worker wrote no `meta.json`, so the diff and verdict missed it (with
+  retries, only the retry in a fresh worker was recorded). The hook is now an auto fixture that runs
+  for every test, covered by a test that runs real Playwright
+- Local runs pile up as `artifacts/run-<time>/` folders; the diff read all of them, so a failure
+  fixed since an earlier run was still reported. When `artifacts/.current-run` is present only that
+  run is read (downloaded CI artifacts have no marker, so merged shards are still read whole)
+- A test that is flaky on main and on the PR is listed as "flaky on main too", not "still failing
+  from main"
+- MCP `analyze_local`: says so when only part of the suite ran (and doesn't call the skipped tests
+  fixed), refuses to judge a run that was stopped before it finished, and finds results at the repo
+  root when Playwright ran from there (VS Code extension with the `init` layout)
 
 ## 1.5.3
 
