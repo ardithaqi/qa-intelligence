@@ -50,7 +50,7 @@ describe("printAiCostSummary", () => {
         writeCurrentRun(root, runDir);
         writeSummaryData(runDir, {
             provider: "anthropic",
-            model: "claude-haiku-4-5",
+            model: "claude-haiku-5-5",
             entries: [
                 {
                     metaPath: "meta.json",
@@ -72,7 +72,7 @@ describe("printAiCostSummary", () => {
         writeCurrentRun(root, runDir);
         writeSummaryData(runDir, {
             provider: "anthropic",
-            model: "claude-haiku-4-5",
+            model: "claude-haiku-5-5",
             entries: [
                 {
                     metaPath: "meta.json",
@@ -113,7 +113,7 @@ describe("printAiCostSummary", () => {
         writeCurrentRun(root, runDir);
         writeSummaryData(runDir, {
             provider: "anthropic",
-            model: "claude-haiku-4-5",
+            model: "claude-haiku-5-5",
             entries: [
                 {
                     metaPath: "meta.json",
@@ -129,7 +129,7 @@ describe("printAiCostSummary", () => {
         assert.equal(logs.length, 2);
         assert.match(
             logs[0],
-            /AI analysis: 1 failure · anthropic \(claude-haiku-4-5\) · ~\$0\.002226 estimated/
+            /AI analysis: 1 failure · anthropic \(claude-haiku-5-5\) · ~\$0\.002226 estimated/
         );
         assert.equal(
             logs[1],

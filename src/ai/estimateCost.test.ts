@@ -38,13 +38,13 @@ describe("resolveAnthropicRates", () => {
 
 describe("estimateAnthropicCost", () => {
     it("estimates haiku-style cost from input/output tokens", () => {
-        const cost = estimateAnthropicCost("claude-haiku-4-5", {
+        const cost = estimateAnthropicCost("claude-haiku-5-5", {
             inputTokens: 944,
             outputTokens: 263,
         });
         assert.ok(cost !== undefined);
-        // 944/1e6 * 1 + 263/1e6 * 5 = 0.002259
-        assert.equal(Number(cost!.toFixed(6)), 0.002259);
+        // 944/1e6 * 0.1 + 263/1e6 * 0.5 = 0.0002259
+        assert.equal(Number(cost!.toFixed(7)), 0.0002259);
     });
 });
 

@@ -3,7 +3,7 @@ import path from "path";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { createGitHubClient, githubToken, repoFromGit } from "./github";
+import { createGitHubClient, githubTokens, repoFromGit } from "./github";
 import {
     analyzeLocal,
     explainProblem,
@@ -28,9 +28,9 @@ function packageVersion(): string {
 export function defaultDeps(cwd: string = process.cwd()): ToolDeps {
     const repo = repoFromGit(cwd);
     if (!repo) return { cwd, github: null, githubProblem: "no GitHub `origin` remote in this repo" };
-    const token = githubToken(process.env, repo.owner);
-    if (!token) return { cwd, github: null, githubProblem: "no token (set GITHUB_TOKEN or sign in with `gh auth login`)" };
-    return { cwd, github: createGitHubClient(repo.owner, repo.repo, token) };
+    const tokens = githubTokens(process.env, repo.owner);
+    if (!tokens.length) return { cwd, github: null, githubProblem: "no token (set GITHUB_TOKEN or sign in with `gh auth login`)" };
+    return { cwd, github: createGitHubClient(repo.owner, repo.repo, tokens) };
 }
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });

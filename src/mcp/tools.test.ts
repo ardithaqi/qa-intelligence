@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { strToU8, zipSync } from "fflate";
 import { analyzeRelease } from "../guardian/analyzeRelease";
 import type { DiffResult, Failure } from "../lib/types";
-import { defaultBaseRef, pickBaselineArtifacts, type GitHubClient } from "./github";
+import { defaultBaseRef, githubTokens, parseGitHubRemote, pickBaselineArtifacts, type GitHubClient } from "./github";
 import {
     analyzeLocal,
     explainProblem,
@@ -47,7 +47,7 @@ function fakeGitHub(over: Partial<GitHubClient> = {}): GitHubClient & { calls: s
         prHeadSha: async (pr) => (calls.push(`prHeadSha ${pr}`), pr === 404 ? null : "2222222bbbb"),
         artifactForCommit: async (sha, prefix) => (calls.push(`artifactForCommit ${sha} ${prefix}`), null),
         baselineForBranch: async () => null,
-        runStatusesForCommit: async () => [],
+        ciStateForCommit: async () => "none" as const,
         ...over,
     };
 }
@@ -94,11 +94,12 @@ describe("get_pr_verdict", () => {
         assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github })), /^Can't read the CI result: the GitHub token can't see this repo .*gh auth switch/);
     }));
 
-    it("tells a running CI apart from a finished run without a report", repo(async (root) => {
-        const running = fakeGitHub({ runStatusesForCommit: async () => ["in_progress"] });
-        assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github: running })), /^CI is still running for PR #7 \(commit 1111111\)/);
-        const noReport = fakeGitHub({ runStatusesForCommit: async () => ["completed"] });
-        assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github: noReport })), /^CI ran for PR #7 .* no guardian report\. Usually the base branch has no test results yet/);
+    it("tells a running, skipped and finished CI run apart", repo(async (root) => {
+        const say = (state: "running" | "skipped" | "done") =>
+            getPrVerdict(new GuardianSession({ cwd: root, github: fakeGitHub({ ciStateForCommit: async () => state }) }));
+        assert.match(await say("running"), /^CI is still running for PR #7 \(commit 1111111\)/);
+        assert.match(await say("skipped"), /^CI skipped the test workflow for PR #7 .*don't run it for this PR/);
+        assert.match(await say("done"), /^CI ran for PR #7 .* no guardian report: the base branch may have no test results yet/);
     }));
 
     it("reads the CI report for the branch's PR and lists problems with ids", repo(async (root) => {
@@ -212,6 +213,20 @@ describe("analyze_local", () => {
         assert.match(out, /1 still failing from main/);
     }));
 
+    it("says which run the baseline came from, and when it ran fewer tests than yours", repo(async (root) => {
+        writeMeta(path.join(root, "artifacts"), "a.spec.ts", { file: "tests/a.spec.ts", line: 2, retry: 1, title: "a", errorMessage: 'Expected: "a"\nReceived: "b"' });
+        fs.writeFileSync(path.join(root, "artifacts", "run-summary.json"), JSON.stringify({ total: 140, passed: 139, failed: 1, flaky: 0, skipped: 0, status: "failed" }));
+        // A smoke-only run on the base branch: 12 tests.
+        const smoke = zipSync({ "run-summary.json": strToU8(JSON.stringify({ total: 12, passed: 12, failed: 0, flaky: 0, skipped: 0, status: "passed" })) });
+        const github = fakeGitHub({ baselineForBranch: async () => ({ runId: 41, createdAt: "2026-11-04T12:00:00Z", zips: [smoke] }) });
+        const out = await analyzeLocal(new GuardianSession({ cwd: root, github }), "origin/dev");
+        assert.match(out, /Note: The baseline \(CI run 41 on dev \(2026-11-04\)\) ran 12 tests and yours ran 140: failures in tests it didn't run show up as new\./);
+
+        const full = zipSync({ "run-summary.json": strToU8(JSON.stringify({ total: 140, passed: 140, failed: 0, flaky: 0, skipped: 0, status: "passed" })) });
+        const same = fakeGitHub({ baselineForBranch: async () => ({ runId: 42, zips: [full] }) });
+        assert.match(await analyzeLocal(new GuardianSession({ cwd: root, github: same }), "origin/dev"), /Note: Baseline: CI run 42 on dev\./);
+    }));
+
     it("works with any base branch name and one upload per brand", repo(async (root) => {
         writeMeta(path.join(root, "artifacts"), "a.spec.ts", { file: "tests/a.spec.ts", line: 2, retry: 1, title: "a", errorMessage: 'Expected: "a"\nReceived: "b"' });
         writeMeta(path.join(root, "artifacts"), "b.spec.ts", { file: "tests/b.spec.ts", line: 2, retry: 1, title: "b", errorMessage: 'Expected: "a"\nReceived: "b"' });
@@ -300,5 +315,41 @@ describe("defaultBaseRef", () => {
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
+    });
+});
+
+describe("parseGitHubRemote", () => {
+    const noAlias = () => null;
+    it("reads every common GitHub remote format", () => {
+        for (const url of [
+            "https://github.com/acme/shop.git",
+            "https://github.com/acme/shop",
+            "https://github.com/acme/shop/",
+            "https://user@github.com/acme/shop.git",
+            "git@github.com:acme/shop.git",
+            "git@github.com:acme/shop",
+            "ssh://git@github.com/acme/shop.git",
+            "ssh://git@github.com:22/acme/shop.git",
+        ]) {
+            assert.deepEqual(parseGitHubRemote(url, noAlias), { owner: "acme", repo: "shop" }, url);
+        }
+    });
+
+    it("accepts an SSH host alias that resolves to github.com (several accounts)", () => {
+        const aliases = (h: string) => (h === "github-work" ? "github.com" : null);
+        assert.deepEqual(parseGitHubRemote("git@github-work:acme-org/app.git", aliases), { owner: "acme-org", repo: "app" });
+        assert.equal(parseGitHubRemote("git@gitlab-work:acme-org/app.git", aliases), null, "an alias for another host");
+        assert.equal(parseGitHubRemote("https://gitlab.com/acme/shop.git", aliases), null);
+        assert.equal(parseGitHubRemote("https://github-work/acme/shop.git", aliases), null, "aliases only exist for SSH");
+    });
+});
+
+describe("githubTokens", () => {
+    it("tries the env tokens first, without duplicates (signed-in gh accounts come after)", () => {
+        const tokens = githubTokens({ GITHUB_TOKEN: "env-a", GH_TOKEN: "env-a" });
+        assert.equal(tokens[0], "env-a");
+        assert.equal(tokens.filter((t) => t === "env-a").length, 1);
+        assert.deepEqual(githubTokens({ GITHUB_TOKEN: "env-a", GH_TOKEN: "env-b" }).slice(0, 2), ["env-a", "env-b"]);
+        assert.equal(new Set(tokens).size, tokens.length);
     });
 });

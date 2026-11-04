@@ -170,12 +170,17 @@ async function prVerdict(session: GuardianSession, github: GitHubClient, pr?: nu
     const zip = await github.artifactForCommit(sha, REPORT_ARTIFACT_PREFIX);
     const json = zip ? readFromZip(zip, "release-report.json") : null;
     if (!json) {
-        const statuses = await github.runStatusesForCommit(sha);
-        if (statuses.length === 0) return NO_CI;
-        if (statuses.some((s) => s !== "completed")) {
-            return `CI is still running for PR #${number} (commit ${sha.slice(0, 7)}). Try again when it finishes, or run analyze_local for a local verdict.`;
+        const at = `PR #${number} (commit ${sha.slice(0, 7)})`;
+        switch (await github.ciStateForCommit(sha)) {
+            case "none":
+                return NO_CI;
+            case "running":
+                return `CI is still running for ${at}. Try again when it finishes, or run analyze_local for a local verdict.`;
+            case "skipped":
+                return `CI skipped the test workflow for ${at}: its conditions don't run it for this PR (some setups only test certain branches). Run analyze_local for a local verdict.`;
+            default:
+                return `CI ran for ${at} but produced no guardian report: the base branch may have no test results yet, or the run stopped before the analysis. Run analyze_local for a local verdict.`;
         }
-        return `CI ran for PR #${number} (commit ${sha.slice(0, 7)}) but produced no guardian report. Usually the base branch has no test results yet: the guardian runs once the workflow has run there. Run analyze_local for a local verdict.`;
     }
 
     session.last = { source: `PR #${number} @ ${sha.slice(0, 7)}`, ...parseSaved(json) };
@@ -200,9 +205,9 @@ export function latestRun(dir: string): string {
 }
 
 /** Baseline failures from the base branch: local baseline-artifacts, else its latest CI results. */
-async function baselineDir(session: GuardianSession, pwDir: string, base: string): Promise<{ dir?: string; note?: string }> {
+async function baselineDir(session: GuardianSession, pwDir: string, base: string): Promise<{ dir?: string; note?: string; source?: string }> {
     const local = path.join(pwDir, "baseline-artifacts");
-    if (fs.existsSync(local)) return { dir: latestRun(local) };
+    if (fs.existsSync(local)) return { dir: latestRun(local), source: "local baseline-artifacts/" };
 
     const branch = branchName(base) ?? base;
     const github = session.deps.github;
@@ -222,7 +227,7 @@ async function baselineDir(session: GuardianSession, pwDir: string, base: string
                 fs.writeFileSync(target, data);
             }
         });
-        return { dir };
+        return { dir, source: `CI run ${found.runId} on ${branch}${found.createdAt ? ` (${found.createdAt.slice(0, 10)})` : ""}` };
     } catch {
         return { note: `Couldn't download the CI test results from ${branch}: failures already failing there show up as new.` };
     }
@@ -284,7 +289,7 @@ export async function analyzeLocal(session: GuardianSession, base?: string): Pro
     if (incomplete) return incomplete;
 
     const baseRef = base ?? defaultBaseRef(cwd);
-    const { dir: baseline, note } = await baselineDir(session, pwDir, baseRef);
+    const { dir: baseline, note, source: baselineSource } = await baselineDir(session, pwDir, baseRef);
     const diff = computeDiff(baseline ?? path.join(pwDir, ".no-baseline"), run);
 
     // Only part of the suite ran (one spec file, --grep): tests that didn't run aren't "fixed",
@@ -305,10 +310,15 @@ export async function analyzeLocal(session: GuardianSession, base?: string): Pro
     });
 
     session.last = { source: "local run", report, diff };
+    // A baseline from a smaller run (e.g. smoke tests only) can't vouch for the other tests.
+    const narrowBaseline = ran != null && onBase != null && onBase < ran
+        ? `The baseline (${baselineSource}) ran ${onBase} tests and yours ran ${ran}: failures in tests it didn't run show up as new.`
+        : "";
+    const notes = [note, narrowBaseline, baselineSource && !narrowBaseline ? `Baseline: ${baselineSource}.` : ""].filter(Boolean);
     const warning = partial
         ? `Partial run: only ${ran} of ${onBase} tests ran (${baseWord(report)} ran ${onBase}). This verdict covers only those tests; run the full suite (npx playwright test) before merging.\n\n`
         : "";
-    return warning + formatVerdictText(cwd, session.last) + (note ? `\n\nNote: ${note}` : "");
+    return warning + formatVerdictText(cwd, session.last) + (notes.length ? `\n\n${notes.map((n) => `Note: ${n}`).join("\n")}` : "");
 }
 
 function findLoaded(session: GuardianSession): LoadedReport | undefined {
