@@ -287,6 +287,47 @@ describe("computeDiff reads every AI answer or falls back", () => {
     });
 });
 
+describe("computeDiff keeps every failing test apart", () => {
+    // As in a real suite: shared steps live in tests/support/ and throw from there.
+    const helperStack = (spec: string, line: number) =>
+        `Error: expect(received).toBe(expected)\n    at waitForEmail (/repo/playwright/tests/support/email-capture.ts:290:20)\n    at /repo/playwright/${spec}:${line}:5`;
+    const write = (current: string, spec: string, title: string, line: number) => {
+        const dir = path.join(current, path.basename(spec), title.replace(/\W/g, "_"), "attempt-1");
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify({
+            file: `/repo/playwright/${spec}`, line: 3, title, retry: 1,
+            errorMessage: 'Expected: "a"\nReceived: "b"', stack: helperStack(spec, line),
+        }));
+    };
+
+    it("puts a failure thrown in a shared helper on the test that called it", () => {
+        withTempDirs((baseline, current) => {
+            write(current, "tests/admin/deactivation.spec.ts", "member is emailed", 72);
+            write(current, "tests/auth/login.spec.ts", "user can sign in", 207);
+            const files = computeDiff(baseline, current).newFailures.map((f) => `${f.file}:${f.line}`).sort();
+            assert.deepEqual(files, ["tests/admin/deactivation.spec.ts:72", "tests/auth/login.spec.ts:207"]);
+        });
+    });
+
+    it("keeps two tests that fail the same way in one file as two failures", () => {
+        withTempDirs((baseline, current) => {
+            write(current, "tests/admin/deactivation.spec.ts", "member is emailed", 72);
+            write(current, "tests/admin/deactivation.spec.ts", "organization owner is emailed", 149);
+            assert.equal(computeDiff(baseline, current).newFailures.length, 2);
+        });
+    });
+
+    it("still matches the same test on the base branch as still failing", () => {
+        withTempDirs((baseline, current) => {
+            write(baseline, "tests/admin/deactivation.spec.ts", "member is emailed", 72);
+            write(current, "tests/admin/deactivation.spec.ts", "member is emailed", 72);
+            const diff = computeDiff(baseline, current);
+            assert.equal(diff.newFailures.length, 0);
+            assert.equal(diff.unchangedFailures.length, 1);
+        });
+    });
+});
+
 describe("computeDiff counts each test once", () => {
     it("keeps one record per test when its attempts were classified differently", () => {
         withTempDirs((baseline, current) => {

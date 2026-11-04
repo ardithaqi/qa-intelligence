@@ -2,6 +2,21 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.4
+
+### Fixed
+
+- **Failing tests went missing from the report:** a failure was filed under the first `tests/` file
+  in its stack, so one thrown inside a shared helper (`tests/support/...`) was reported on the
+  helper instead of the test, and different tests that failed in the same helper merged into one.
+  Failures were also identified by file and failure type only, so two tests failing the same way in
+  one spec file counted as one. On a real run, 7 failing and 2 flaky tests showed as 5 entries. A
+  failure now sits in the test's own spec file, at the line that called the helper, and the test
+  title is part of its identity. Recurrence counts (`occurrence_count`) start fresh for tests that
+  have a title, since their history key changed
+- Failures that differ only by a one-time token in a URL (`/set-password?token=...`) are grouped as
+  one problem instead of one per test
+
 ## 2.0.3
 
 ### Fixed

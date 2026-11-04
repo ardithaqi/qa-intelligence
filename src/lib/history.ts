@@ -12,7 +12,7 @@ export const MAX_RUNS = 20;
 export type EnrichedFailure = Failure;
 
 export function failureKey(f: Failure): string {
-    return failureDiffKey(f.file, f.failure_type);
+    return failureDiffKey(f.file, f.failure_type, f.title);
 }
 
 export function loadHistory(historyPath: string): History {
