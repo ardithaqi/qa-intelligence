@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 
@@ -112,6 +113,31 @@ export function writeMcpConfigs(root: string, force: boolean): { written: string
     return { written, skipped };
 }
 
+/**
+ * The repo's default branch, detected from git: origin's default, else the checked-out branch
+ * (a new repo). Undefined outside a git repo.
+ */
+export function detectDefaultBranch(root: string): string | undefined {
+    const git = (args: string[]) => {
+        try {
+            return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+        } catch {
+            return "";
+        }
+    };
+    const remote = git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).replace(/^origin\//, "");
+    if (remote) return remote;
+    // symbolic-ref also works in a new repo before its first commit; empty when HEAD is detached.
+    return git(["symbolic-ref", "--short", "HEAD"]) || undefined;
+}
+
+/** Points the workflow's push trigger (which records the baseline) at the detected default branch. */
+export function setBaselineBranch(workflowFile: string, branch: string | undefined): void {
+    if (!branch || branch === "main" || branch === "master" || !fs.existsSync(workflowFile)) return;
+    const text = fs.readFileSync(workflowFile, "utf8");
+    fs.writeFileSync(workflowFile, text.replace("  push:\n    branches: [main, master]", `  push:\n    branches: [${branch}]`));
+}
+
 export function runInit(options?: {
     root?: string;
     force?: boolean;
@@ -129,6 +155,9 @@ export function runInit(options?: {
     }
 
     const result = copyScaffold(root, entries, force);
+    if (withCi && result.written.includes(CI_SCAFFOLD[0].dest)) {
+        setBaselineBranch(path.join(root, CI_SCAFFOLD[0].dest), detectDefaultBranch(root));
+    }
     if (withMcp) {
         const mcp = writeMcpConfigs(root, force);
         result.written.push(...mcp.written);

@@ -1,10 +1,12 @@
 name: AI Release Guardian
 
 on:
+  # Pushes to the default branch record the baseline. `init` writes your default branch here;
+  # add other long-lived branches (e.g. pre-dev) to give PRs into them their own baseline.
   push:
     branches: [main, master]
+  # PRs into any branch (main, dev, pre-dev, release/...) are checked.
   pull_request:
-    branches: [main, master]
 
 permissions:
   contents: read
@@ -170,13 +172,25 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
-      - name: Download baseline artifacts from default branch
+      # The baseline is the PR's target branch (dev, pre-dev, main...), detected from the PR.
+      - name: Download baseline artifacts from the target branch
         id: download-baseline
         if: always() && github.event_name == 'pull_request'
         uses: dawidd6/action-download-artifact@v21
         with:
           workflow: qa-intelligence.yml
           branch: ${{ github.base_ref }}
+          name: playwright-artifacts-baseline
+          path: baseline-artifacts
+          if_no_artifact_found: ignore
+
+      # A target branch with no results yet (no push run there): use the default branch's.
+      - name: Download baseline artifacts from the default branch
+        if: always() && github.event_name == 'pull_request' && github.base_ref != github.event.repository.default_branch && hashFiles('baseline-artifacts/**') == ''
+        uses: dawidd6/action-download-artifact@v21
+        with:
+          workflow: qa-intelligence.yml
+          branch: ${{ github.event.repository.default_branch }}
           name: playwright-artifacts-baseline
           path: baseline-artifacts
           if_no_artifact_found: ignore
@@ -190,7 +204,7 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "No baseline yet - expected until this workflow merges and runs on push to the default branch."
+            echo "No baseline yet - expected until this workflow has run on a push to the target or default branch."
           fi
 
       # --- AI Release Guardian -------------------------------------------------
