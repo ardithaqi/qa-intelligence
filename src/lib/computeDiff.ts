@@ -150,8 +150,22 @@ function resolveFailureFromMeta(metaPath: string): Failure | null {
     };
 }
 
-function collectFailures(root: string): Failure[] {
-    if (!fs.existsSync(root)) return [];
+/**
+ * Local runs pile up as artifacts/run-<time>/ folders; globalSetup marks the latest one in
+ * artifacts/.current-run. When the marker is there, only that run counts, so a failure fixed
+ * since an earlier run isn't reported again. Downloaded CI artifacts don't carry the marker
+ * (hidden files aren't uploaded), so a merged artifact from sharded runs is read whole.
+ */
+export function currentRunDir(root: string): string {
+    const marker = path.join(root, ".current-run");
+    if (!fs.existsSync(marker)) return root;
+    const run = path.join(root, path.basename(fs.readFileSync(marker, "utf8").trim()));
+    return run !== root && fs.existsSync(run) ? run : root;
+}
+
+function collectFailures(dir: string): Failure[] {
+    if (!fs.existsSync(dir)) return [];
+    const root = currentRunDir(dir);
 
     const bestByKey = new Map<string, { failure: Failure; attempt: number }>();
 

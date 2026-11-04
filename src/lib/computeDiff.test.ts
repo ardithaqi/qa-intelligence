@@ -259,6 +259,28 @@ describe("computeDiff", () => {
     });
 });
 
+describe("computeDiff with several local runs", () => {
+    const fail = { file: "tests/checkout.spec.ts", line: 5, failure_type: "assertion_mismatch", severity: "medium", confidence: 90 };
+
+    it("reads only the run marked in .current-run, so a failure fixed since then is gone", () => {
+        withTempDirs((baseline, current) => {
+            writeFailureArtifact(path.join(current, "run-2026-11-04T08-00-00-000Z"), "checkout.spec.ts", "t", 0, fail);
+            fs.mkdirSync(path.join(current, "run-2026-11-04T09-00-00-000Z"));
+            // globalSetup writes the path relative to where Playwright started.
+            fs.writeFileSync(path.join(current, ".current-run"), "artifacts/run-2026-11-04T09-00-00-000Z");
+            assert.equal(computeDiff(baseline, current).newFailures.length, 0);
+        });
+    });
+
+    it("reads every run when there's no marker (merged CI artifact from sharded runs)", () => {
+        withTempDirs((baseline, current) => {
+            writeFailureArtifact(path.join(current, "run-a"), "checkout.spec.ts", "t", 0, fail);
+            writeFailureArtifact(path.join(current, "run-b"), "search.spec.ts", "t", 0, { ...fail, file: "tests/search.spec.ts" });
+            assert.equal(computeDiff(baseline, current).newFailures.length, 2);
+        });
+    });
+});
+
 describe("extractAiNote", () => {
     it("takes the observed line from the AI's root cause section", () => {
         const content = "File: tests/a.spec.ts\n\nRoot cause:\nLine 1: compares #total to 30.\nLine 2: The element stayed \"20\" for the whole timeout.\nLine 3: assertion_mismatch.\n\n{}";
