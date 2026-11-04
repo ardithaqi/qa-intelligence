@@ -138,6 +138,55 @@ describe("analyze_local", () => {
         assert.equal(s.last?.source, "local run");
     }));
 
+    it("reads only the newest local run, so a failure fixed since then is gone", repo(async (root) => {
+        const meta = { file: "tests/checkout.spec.ts", line: 5, retry: 1, errorMessage: 'Expected: "30"\nReceived: "29"' };
+        const old = path.join(root, "artifacts", "run-2026-11-04T08-00-00-000Z", "checkout.spec.ts", "t", "attempt-1");
+        fs.mkdirSync(old, { recursive: true });
+        fs.writeFileSync(path.join(old, "meta.json"), JSON.stringify(meta));
+        fs.mkdirSync(path.join(root, "artifacts", "run-2026-11-04T09-00-00-000Z"), { recursive: true });
+        fs.mkdirSync(path.join(root, "baseline-artifacts"), { recursive: true });
+
+        const out = await analyzeLocal(new GuardianSession({ cwd: root, github: null }), "HEAD");
+        assert.match(out, /^SAFE TO MERGE/);
+        assert.doesNotMatch(out, /checkout/);
+    }));
+
+    const summary = (dir: string, s: object) => {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "run-summary.json"), JSON.stringify({ passed: 0, failed: 0, flaky: 0, skipped: 0, status: "passed", ...s }));
+    };
+
+    it("says when only part of the suite ran, and doesn't call skipped tests fixed", repo(async (root) => {
+        writeMeta(path.join(root, "baseline-artifacts"), "legacy.spec.ts", { file: "tests/legacy.spec.ts", line: 2, retry: 0, errorMessage: 'Expected: "a"\nReceived: "b"' });
+        summary(path.join(root, "baseline-artifacts"), { total: 3 });
+        fs.mkdirSync(path.join(root, "artifacts", "run-2026-11-04T09-00-00-000Z"), { recursive: true });
+        summary(path.join(root, "artifacts"), { total: 1, passed: 1 });
+
+        const out = await analyzeLocal(new GuardianSession({ cwd: root, github: null }), "HEAD");
+        assert.match(out, /^Partial run: only 1 of 3 tests ran/);
+        assert.doesNotMatch(out, /fixed/);
+    }));
+
+    it("refuses to judge a run that was stopped before it finished", repo(async (root) => {
+        writeMeta(path.join(root, "artifacts"), "slow.spec.ts", { file: "tests/slow.spec.ts", line: 2, retry: 0 });
+        fs.renameSync(path.join(root, "artifacts", "run-1"), path.join(root, "artifacts", "run-2026-11-04T09-00-00-000Z"));
+        summary(path.join(root, "artifacts"), { total: 1, skipped: 1, status: "interrupted" });
+        const out = await analyzeLocal(new GuardianSession({ cwd: root, github: null }), "HEAD");
+        assert.match(out, /^The latest test run didn't finish/);
+    }));
+
+    it("finds results at the repo root when Playwright ran from there (VS Code extension, init layout)", repo(async (root) => {
+        fs.mkdirSync(path.join(root, "playwright"));
+        const meta = { file: "tests/checkout.spec.ts", line: 5, retry: 0, errorMessage: 'Expected: "30"\nReceived: "29"' };
+        const run = path.join(root, "artifacts", "run-2026-11-04T09-00-00-000Z", "checkout.spec.ts", "t", "attempt-0");
+        fs.mkdirSync(run, { recursive: true });
+        fs.writeFileSync(path.join(run, "meta.json"), JSON.stringify(meta));
+        summary(path.join(root, "artifacts"), { total: 1, failed: 1, status: "failed" });
+
+        const out = await analyzeLocal(new GuardianSession({ cwd: root, github: null }), "HEAD");
+        assert.match(out, /^BLOCK/);
+    }));
+
     it("downloads the CI baseline when there's none locally", repo(async (root) => {
         writeMeta(path.join(root, "artifacts"), "legacy.spec.ts", { file: "tests/legacy.spec.ts", line: 2, retry: 1, errorMessage: 'Expected: "a"\nReceived: "b"' });
         // Main's baseline already has the same failure, so it is pre-existing.

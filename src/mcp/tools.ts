@@ -164,10 +164,22 @@ export async function getPrVerdict(session: GuardianSession, pr?: number): Promi
     return text;
 }
 
+/**
+ * Local Playwright runs pile up as artifacts/run-<timestamp>/ folders. Only the newest one
+ * reflects the current code; reading them all would keep reporting failures already fixed.
+ */
+export function latestRun(dir: string): string {
+    const runs = fs.readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && e.name.startsWith("run-"))
+        .map((e) => e.name)
+        .sort();
+    return runs.length ? path.join(dir, runs[runs.length - 1]) : dir;
+}
+
 /** Baseline failures from main: local baseline-artifacts, else the latest CI baseline. */
 async function baselineDir(session: GuardianSession, pwDir: string, base: string): Promise<{ dir?: string; note?: string }> {
     const local = path.join(pwDir, "baseline-artifacts");
-    if (fs.existsSync(local)) return { dir: local };
+    if (fs.existsSync(local)) return { dir: latestRun(local) };
 
     const github = session.deps.github;
     if (!github) return { note: "No baseline from main: failures already failing there show up as new." };
@@ -190,17 +202,59 @@ async function baselineDir(session: GuardianSession, pwDir: string, base: string
     }
 }
 
+/** Start time encoded in a run folder name (run-2026-11-04T09-37-29-829Z), or undefined. */
+function runStartedAt(runDir: string): number | undefined {
+    const m = path.basename(runDir).match(/^run-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/);
+    return m ? Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`) : undefined;
+}
+
+/**
+ * The artifacts folder of the most recent local run. The hooks write artifacts/ relative to
+ * where Playwright was started: playwright/artifacts from `cd playwright`, but artifacts/ at the
+ * repo root when the VS Code extension or `npx playwright test -c playwright` runs from the root.
+ */
+function localArtifacts(cwd: string, pwDir: string): string | undefined {
+    const candidates = [...new Set([path.join(pwDir, "artifacts"), path.join(cwd, "artifacts")])].filter((d) => fs.existsSync(d));
+    const started = (d: string) => runStartedAt(latestRun(d)) ?? fs.statSync(d).mtimeMs;
+    return candidates.sort((a, b) => started(b) - started(a))[0];
+}
+
+/** Why the latest local run can't be judged as a whole, or undefined when it can. */
+function incompleteRun(current: string, run: string): string | undefined {
+    const summary = readRunSummary(current);
+    const summaryFile = path.join(current, "run-summary.json");
+    const started = runStartedAt(run);
+    const stale = summary && started != null && fs.statSync(summaryFile).mtimeMs < started;
+    // No summary at all means the reporter isn't configured: nothing to tell, so judge the run.
+    if (summary?.status === "interrupted" || stale) {
+        return "The latest test run didn't finish (stopped or still running), so its results are incomplete. Run the tests again (npx playwright test), then call analyze_local.";
+    }
+    return undefined;
+}
+
 export async function analyzeLocal(session: GuardianSession, base?: string): Promise<string> {
     const { cwd } = session.deps;
     const pwDir = playwrightDir(cwd);
-    const current = path.join(pwDir, "artifacts");
-    if (!fs.existsSync(current)) {
-        return `No local test results in ${path.relative(cwd, current) || "artifacts"}/. Run your Playwright tests first (npx playwright test).`;
+    const current = localArtifacts(cwd, pwDir);
+    if (!current) {
+        return `No local test results in ${path.relative(cwd, path.join(pwDir, "artifacts")) || "artifacts"}/. Run your Playwright tests first (npx playwright test).`;
     }
+    const run = latestRun(current);
+    const incomplete = incompleteRun(current, run);
+    if (incomplete) return incomplete;
 
     const baseRef = base ?? defaultBaseRef(cwd);
     const { dir: baseline, note } = await baselineDir(session, pwDir, baseRef);
-    const diff = computeDiff(baseline ?? path.join(pwDir, ".no-baseline"), current);
+    const diff = computeDiff(baseline ?? path.join(pwDir, ".no-baseline"), run);
+
+    // Only part of the suite ran (one spec file, --grep): tests that didn't run aren't "fixed",
+    // and the verdict covers only what ran.
+    const ran = readRunSummary(current)?.total;
+    // run-summary.json sits in the artifacts folder, one level above the run folder.
+    const onMain = baseline ? (readRunSummary(baseline) ?? readRunSummary(path.dirname(baseline)))?.total : undefined;
+    const partial = ran != null && onMain != null && ran < onMain;
+    if (partial) diff.fixedFailures = [];
+
     const historyFile = path.join(pwDir, ".cache", "failure-history.json");
     const report = analyzeRelease(diff, {
         changes: collectChangesWithWorktree(baseRef, cwd),
@@ -210,7 +264,10 @@ export async function analyzeLocal(session: GuardianSession, base?: string): Pro
     });
 
     session.last = { source: "local run", report, diff };
-    return formatVerdictText(cwd, session.last) + (note ? `\n\nNote: ${note}` : "");
+    const warning = partial
+        ? `Partial run: only ${ran} of ${onMain} tests ran (main ran ${onMain}). This verdict covers only those tests; run the full suite (npx playwright test) before merging.\n\n`
+        : "";
+    return warning + formatVerdictText(cwd, session.last) + (note ? `\n\nNote: ${note}` : "");
 }
 
 function findLoaded(session: GuardianSession): LoadedReport | undefined {
