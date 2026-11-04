@@ -275,7 +275,7 @@ The config runs the locally installed package with `node`. It doesn't use `npx a
 | `flaky_tests` | The most unstable tests from CI history, plus tests that only passed on retry. |
 | `failure_history` | How often a test failed, since when, and how it's classified now. |
 
-All tools are read-only: nothing is written to the repo or posted to GitHub, and the server makes no AI calls of its own (the assistant is the AI). `get_pr_verdict` reads the PR's `release-guardian-*` CI artifact, which needs a GitHub token (`GITHUB_TOKEN`, or the GitHub CLI signed in with `gh auth login`). `init --no-mcp` skips the editor config.
+All tools are read-only: nothing is written to the repo or posted to GitHub, and the server makes no AI calls of its own (the assistant is the AI). `get_pr_verdict` reads the PR's `release-guardian-*` CI artifact, which needs GitHub access: `GITHUB_TOKEN`, or the GitHub CLI signed in with `gh auth login`. With several accounts signed in (work and personal), the server uses the one that can see the repo, and SSH host aliases in `~/.ssh/config` (e.g. `git@github-work:org/repo`) work. `init --no-mcp` skips the editor config.
 
 ---
 

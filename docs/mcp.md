@@ -64,7 +64,7 @@ By hand: `claude mcp add release-guardian -- node playwright/node_modules/qa-int
 
 Not `npx ai-release-guardian`: the npm package is `qa-intelligence`, so npx would search npm for a different package of that name.
 
-`get_pr_verdict` needs a GitHub token (`GITHUB_TOKEN`, or `gh auth token` when the GitHub CLI is signed in) to read the PR's CI artifact.
+`get_pr_verdict` needs GitHub access to read the PR's CI artifact: `GITHUB_TOKEN`, or the GitHub CLI signed in. The server tries each available token (env, then every signed-in `gh` account) and uses the first that can see the repo, and it resolves SSH host aliases (`git@github-work:org/repo`) through `~/.ssh/config`.
 
 ## Code layout
 
