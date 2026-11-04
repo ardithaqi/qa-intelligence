@@ -259,6 +259,36 @@ describe("computeDiff", () => {
     });
 });
 
+describe("computeDiff counts each test once", () => {
+    it("keeps one record per test when its attempts were classified differently", () => {
+        withTempDirs((baseline, current) => {
+            // As in CI: the AI analyzed the last attempt, the first one only has meta.json,
+            // which the error-text rules classify as a different type.
+            const test = path.join(current, "search.spec.ts", "search_suggestions_appear");
+            fs.mkdirSync(path.join(test, "attempt-0"), { recursive: true });
+            fs.writeFileSync(path.join(test, "attempt-0", "meta.json"), JSON.stringify({
+                file: "tests/search.spec.ts", line: 7, retry: 0, errorMessage: "Error: something odd happened",
+            }));
+            writeFailureArtifact(current, "search.spec.ts", "search_suggestions_appear", 1, {
+                file: "tests/search.spec.ts", line: 7, failure_type: "assertion_mismatch", severity: "medium", confidence: 90,
+            });
+
+            const diff = computeDiff(baseline, current);
+            assert.equal(diff.newFailures.length, 1);
+            assert.equal(diff.newFailures[0].failure_type, "assertion_mismatch", "the last attempt (with AI) wins");
+        });
+    });
+
+    it("still keeps two different failing tests", () => {
+        withTempDirs((baseline, current) => {
+            const fail = { line: 5, failure_type: "assertion_mismatch", severity: "medium", confidence: 90 };
+            writeFailureArtifact(current, "checkout.spec.ts", "t", 1, { ...fail, file: "tests/checkout.spec.ts" });
+            writeFailureArtifact(current, "search.spec.ts", "t", 1, { ...fail, file: "tests/search.spec.ts" });
+            assert.equal(computeDiff(baseline, current).newFailures.length, 2);
+        });
+    });
+});
+
 describe("computeDiff with several local runs", () => {
     const fail = { file: "tests/checkout.spec.ts", line: 5, failure_type: "assertion_mismatch", severity: "medium", confidence: 90 };
 
