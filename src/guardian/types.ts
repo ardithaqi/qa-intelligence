@@ -112,6 +112,8 @@ export interface ReleaseReport {
     decisionReason: string;
     risk: RiskScore;
     testsAnalyzed?: number;
+    /** Tests Playwright reported as failed after retries (from run-summary.json). */
+    failedInRun?: number;
     /** Failures introduced or still present in this run (excludes fixed). */
     failureCount: number;
     /** Counts for new failures only - the ones this PR is accountable for. */

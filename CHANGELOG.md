@@ -2,6 +2,20 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.1
+
+### Fixed
+
+- **Failures went unrecorded when the browser couldn't start** (e.g. a broken or missing browser
+  install): the recorder depended on Playwright's `page`, so when `page` failed to set up nothing was
+  written and the guardian said "SAFE TO MERGE, all tests passed". The failure is now recorded
+  without a page (screenshot and DOM are still saved when there is one), and shows up as an
+  infrastructure failure
+- Safety net: when Playwright reports failed tests but none were recorded, the verdict is
+  REVIEW REQUIRED ("N tests failed, but no failure details were recorded"), never SAFE, and the
+  comment no longer says "all tests passed"
+- Tests that don't use `page` no longer start a browser just for failure recording
+
 ## 2.0.0 - AI Release Guardian
 
 The product is now **AI Release Guardian**. The npm package name, imports, existing CLIs and their

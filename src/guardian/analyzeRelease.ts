@@ -113,7 +113,7 @@ export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions 
     const groups = groupFailures(fresh);
     const risk = scoreRisk(failures, groups);
     const testsAnalyzed = options.runSummary?.total;
-    const { decision, reason } = decideRelease({ failures, groups, risk, testsAnalyzed });
+    const { decision, reason } = decideRelease({ failures, groups, risk, testsAnalyzed, failedInRun: options.runSummary?.failed });
 
     const counts: CategoryCounts = { regression: 0, flaky: 0, infrastructure: 0, test_issue: 0, unknown: 0 };
     for (const f of fresh) counts[f.classification.category]++;
@@ -135,6 +135,7 @@ export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions 
         decisionReason: reason,
         risk,
         ...(testsAnalyzed != null ? { testsAnalyzed } : {}),
+        ...(options.runSummary?.failed ? { failedInRun: options.runSummary.failed } : {}),
         failureCount: failures.length,
         counts,
         preExistingCount: existing.filter((f) => f.classification.category !== "flaky").length,

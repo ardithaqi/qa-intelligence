@@ -19,7 +19,19 @@ export function decideRelease(input: {
     groups: FailureGroup[];
     risk: RiskScore;
     testsAnalyzed?: number;
+    /** Tests Playwright reported as failed after retries (run-summary.json), if known. */
+    failedInRun?: number;
 }): { decision: ReleaseDecision; reason: string } {
+    // Playwright says tests failed, but no failure was recorded (e.g. the browser never started,
+    // or the hooks aren't installed). Without the details nothing can be judged, so never SAFE.
+    const recordedFailing = input.failures.filter((f) => f.classification.category !== "flaky").length;
+    if ((input.failedInRun ?? 0) > 0 && recordedFailing === 0) {
+        return {
+            decision: "REVIEW REQUIRED",
+            reason: `${plural(input.failedInRun!, "test")} failed, but no failure details were recorded, so they couldn't be analyzed. Check the test run log.`,
+        };
+    }
+
     const fresh = input.failures.filter((f) => f.lifecycle === "new");
     const of = (c: string) => fresh.filter((f) => f.classification.category === c);
     const regressions = of("regression");
