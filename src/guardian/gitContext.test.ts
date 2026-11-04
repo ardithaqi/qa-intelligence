@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { collectChanges, collectPatches } from "./gitContext";
+import { branchName, collectChanges, collectPatches } from "./gitContext";
 
 function repo(fn: (root: string, git: (...args: string[]) => string) => void) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "guardian-git-"));
@@ -103,5 +103,20 @@ describe("collectPatches", () => {
 
     it("returns nothing without a base", () => {
         assert.deepEqual(collectPatches(undefined, ["a.ts"]), {});
+    });
+});
+
+describe("branchName", () => {
+    it("names the branch from a base ref, for any branch name", () => {
+        assert.equal(branchName("origin/dev"), "dev");
+        assert.equal(branchName("origin/pre-dev"), "pre-dev");
+        assert.equal(branchName("refs/remotes/origin/master"), "master");
+        assert.equal(branchName("release/v1.3"), "release/v1.3");
+    });
+
+    it("gives nothing for a commit SHA or HEAD-relative ref", () => {
+        assert.equal(branchName("76138e9e3a87840b59b17680c9e9a33d0be47e4c"), undefined);
+        assert.equal(branchName("HEAD~1"), undefined);
+        assert.equal(branchName(undefined), undefined);
     });
 });

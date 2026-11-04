@@ -7,10 +7,9 @@ import { describe, it } from "node:test";
 import { strToU8, zipSync } from "fflate";
 import { analyzeRelease } from "../guardian/analyzeRelease";
 import type { DiffResult, Failure } from "../lib/types";
-import type { GitHubClient } from "./github";
+import { defaultBaseRef, pickBaselineArtifacts, type GitHubClient } from "./github";
 import {
     analyzeLocal,
-    BASELINE_ARTIFACT,
     explainProblem,
     failureHistory,
     flakyTests,
@@ -47,7 +46,7 @@ function fakeGitHub(over: Partial<GitHubClient> = {}): GitHubClient & { calls: s
         findOpenPr: async (branch) => (calls.push(`findOpenPr ${branch}`), { number: 7, headSha: "1111111aaaa" }),
         prHeadSha: async (pr) => (calls.push(`prHeadSha ${pr}`), pr === 404 ? null : "2222222bbbb"),
         artifactForCommit: async (sha, prefix) => (calls.push(`artifactForCommit ${sha} ${prefix}`), null),
-        artifactForBranch: async () => null,
+        baselineForBranch: async () => null,
         runStatusesForCommit: async () => [],
         ...over,
     };
@@ -99,7 +98,7 @@ describe("get_pr_verdict", () => {
         const running = fakeGitHub({ runStatusesForCommit: async () => ["in_progress"] });
         assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github: running })), /^CI is still running for PR #7 \(commit 1111111\)/);
         const noReport = fakeGitHub({ runStatusesForCommit: async () => ["completed"] });
-        assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github: noReport })), /^CI ran for PR #7 .* no guardian report\. Usually main has no baseline yet/);
+        assert.match(await getPrVerdict(new GuardianSession({ cwd: root, github: noReport })), /^CI ran for PR #7 .* no guardian report\. Usually the base branch has no test results yet/);
     }));
 
     it("reads the CI report for the branch's PR and lists problems with ids", repo(async (root) => {
@@ -203,14 +202,28 @@ describe("analyze_local", () => {
 
     it("downloads the CI baseline when there's none locally", repo(async (root) => {
         writeMeta(path.join(root, "artifacts"), "legacy.spec.ts", { file: "tests/legacy.spec.ts", line: 2, retry: 1, errorMessage: 'Expected: "a"\nReceived: "b"' });
-        // Main's baseline already has the same failure, so it is pre-existing.
+        // The base branch's results already have the same failure, so it is pre-existing.
         const baseline = zipSync({ "run-1/legacy.spec.ts/t/attempt-1/meta.json": strToU8(JSON.stringify({ file: "tests/legacy.spec.ts", line: 2, retry: 1, errorMessage: 'Expected: "a"\nReceived: "b"' })) });
         let asked = "";
-        const github = fakeGitHub({ artifactForBranch: async (branch, name) => ((asked = `${branch} ${name}`), baseline) });
+        const github = fakeGitHub({ baselineForBranch: async (branch) => ((asked = branch), { runId: 1, zips: [baseline] }) });
         const out = await analyzeLocal(new GuardianSession({ cwd: root, github }), "origin/main");
-        assert.equal(asked, `main ${BASELINE_ARTIFACT}`);
+        assert.equal(asked, "main");
         assert.match(out, /^SAFE TO MERGE/);
         assert.match(out, /1 still failing from main/);
+    }));
+
+    it("works with any base branch name and one upload per brand", repo(async (root) => {
+        writeMeta(path.join(root, "artifacts"), "a.spec.ts", { file: "tests/a.spec.ts", line: 2, retry: 1, title: "a", errorMessage: 'Expected: "a"\nReceived: "b"' });
+        writeMeta(path.join(root, "artifacts"), "b.spec.ts", { file: "tests/b.spec.ts", line: 2, retry: 1, title: "b", errorMessage: 'Expected: "a"\nReceived: "b"' });
+        const one = (spec: string, title: string) =>
+            zipSync({ [`run-1/${spec}/t/attempt-1/meta.json`]: strToU8(JSON.stringify({ file: `tests/${spec}`, line: 2, retry: 1, title, errorMessage: 'Expected: "a"\nReceived: "b"' })) });
+        let asked = "";
+        // Two brands, two uploads from the same run: both count.
+        const github = fakeGitHub({ baselineForBranch: async (branch) => ((asked = branch), { runId: 9, zips: [one("a.spec.ts", "a"), one("b.spec.ts", "b")] }) });
+        const out = await analyzeLocal(new GuardianSession({ cwd: root, github }), "origin/pre-dev");
+        assert.equal(asked, "pre-dev");
+        assert.match(out, /2 still failing from pre-dev/);
+        assert.doesNotMatch(out, /\bmain\b/);
     }));
 });
 
@@ -251,5 +264,41 @@ describe("explain_problem, flaky_tests, failure_history", () => {
         assert.match(failureHistory(loaded(), "tests/checkout.spec.ts"), /Regression, new in this change, failed 3 time\(s\) since 2026-10-01/);
         assert.match(failureHistory(loaded(), "search.spec.ts"), /Intermittent: failed in 4 of the last 10 CI runs\./);
         assert.match(failureHistory(loaded(), "tests/other.spec.ts"), /isn't failing in the PR #7 @ 1111111 report/);
+    });
+});
+
+describe("pickBaselineArtifacts", () => {
+    it("finds the test results of a run, whatever the uploads are called", () => {
+        assert.deepEqual(pickBaselineArtifacts(["playwright-report-1", "playwright-artifacts-1", "playwright-artifacts-baseline"]), ["playwright-artifacts-baseline"]);
+        // One full results upload per brand, next to trimmed copies and HTML reports.
+        assert.deepEqual(
+            pickBaselineArtifacts(["playwright-artifacts-raw-a-7", "playwright-artifacts-a-7", "playwright-report-a-7", "playwright-artifacts-raw-b-7"]),
+            ["playwright-artifacts-raw-a-7", "playwright-artifacts-raw-b-7"]
+        );
+        assert.deepEqual(pickBaselineArtifacts(["playwright-artifacts-41", "playwright-report-41"]), ["playwright-artifacts-41"]);
+        assert.deepEqual(pickBaselineArtifacts(["coverage", "playwright-report-41"]), []);
+    });
+});
+
+describe("defaultBaseRef", () => {
+    it("uses origin's default branch, else the first of main, master, dev that exists", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "guardian-base-"));
+        const git = (...a: string[]) => execFileSync("git", a, { cwd: root, stdio: "ignore" });
+        try {
+            git("init", "-q", "-b", "dev");
+            git("config", "user.email", "t@example.invalid");
+            git("config", "user.name", "T");
+            git("config", "commit.gpgsign", "false");
+            fs.writeFileSync(path.join(root, "x"), "x");
+            git("add", ".");
+            git("commit", "-qm", "x");
+            // A repo whose only remote branch is dev, with no origin/HEAD.
+            git("update-ref", "refs/remotes/origin/dev", "HEAD");
+            assert.equal(defaultBaseRef(root), "origin/dev");
+            git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/dev");
+            assert.equal(defaultBaseRef(root), "origin/dev");
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });

@@ -2,6 +2,25 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.5
+
+### Changed
+
+- **Any branch setup works without settings** (main, master, dev, pre-dev, release/...). The
+  branch a PR merges into is detected (`GITHUB_BASE_REF` in CI, git locally) and named in the PR
+  comment and the MCP answers ("1 still failing from dev", "flaky on pre-dev too") instead of a
+  fixed "main". When no branch is known it says "the base branch". `--base-branch` overrides it,
+  and the report stores it as `baseBranch`
+- MCP `analyze_local` finds the base branch's CI results by itself: the newest finished run on that
+  branch (any trigger) with test results, whatever the uploads are called, all brands of a
+  multi-brand run combined. Before, it only looked for a `playwright-artifacts-baseline` upload
+  from push runs
+- The default branch falls back to whichever of `main`, `master`, `dev` exists when
+  `origin/HEAD` isn't set
+- `init` detects the repo's default branch and writes it into the workflow's push trigger. The
+  scaffolded workflow checks PRs into any branch, and a target branch without results yet uses the
+  default branch's baseline
+
 ## 2.0.4
 
 ### Fixed

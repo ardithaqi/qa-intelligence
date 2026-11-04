@@ -134,6 +134,8 @@ npx qa-intelligence init --no-ci      # playwright/ only
 npx qa-intelligence init --force      # overwrite files that already exist
 ```
 
+**Branches are detected, not configured.** `init` reads your default branch from git (`main`, `master`, `dev`, ...) and writes it into the workflow's push trigger, which records the baseline. The workflow checks PRs into any branch. Each PR is compared with its target branch's results, falling back to the default branch's when the target has none yet. The PR comment and the MCP answers name that branch ("1 still failing from dev"). To give another long-lived branch (e.g. `pre-dev`) its own baseline, add it to the push trigger.
+
 ---
 
 ## How decisions are made

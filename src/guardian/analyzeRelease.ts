@@ -35,6 +35,8 @@ export interface AnalyzeReleaseOptions {
     ai?: ReleaseReport["ai"];
     /** AI overview of the whole run (from explainRootCauses). */
     aiOverview?: string;
+    /** Branch the PR merges into, for the wording ("still failing from dev"). */
+    baseBranch?: string;
 }
 
 /**
@@ -131,6 +133,7 @@ export function analyzeRelease(diff: DiffResult, options: AnalyzeReleaseOptions 
 
     return {
         schemaVersion: 1,
+        ...(options.baseBranch ? { baseBranch: options.baseBranch } : {}),
         decision,
         decisionReason: reason,
         risk,

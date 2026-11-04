@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { CI_SCAFFOLD, MCP_CONFIG_FILES, PLAYWRIGHT_SCAFFOLD, runInit, writeMcpConfigs } from "../cli/init";
+import { CI_SCAFFOLD, detectDefaultBranch, MCP_CONFIG_FILES, PLAYWRIGHT_SCAFFOLD, runInit, writeMcpConfigs } from "../cli/init";
 
 const PLAYWRIGHT_TEMPLATE_FILES = [
     "playwright/.env.example",
@@ -133,6 +134,45 @@ describe("MCP config for AI assistants", () => {
             fs.rmSync(other, { recursive: true, force: true });
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("default branch detection", () => {
+    const repo = (branch: string) => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "qa-init-branch-"));
+        execFileSync("git", ["init", "-q", "-b", branch], { cwd: root, stdio: "ignore" });
+        return root;
+    };
+    const pushBranches = (root: string) =>
+        fs.readFileSync(path.join(root, CI_SCAFFOLD[0].dest), "utf8").match(/push:\n\s+branches: (\[[^\]]*\])/)?.[1];
+
+    it("writes the repo's own default branch into the workflow, whatever it's called", () => {
+        for (const branch of ["dev", "pre-dev"]) {
+            const root = repo(branch);
+            try {
+                assert.equal(detectDefaultBranch(root), branch);
+                runInit({ root, withMcp: false });
+                assert.equal(pushBranches(root), `[${branch}]`);
+                assert.match(fs.readFileSync(path.join(root, CI_SCAFFOLD[0].dest), "utf8"), /pull_request:\n(?!\s+branches)/, "PRs into any branch");
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        }
+    });
+
+    it("keeps main/master, and leaves the template alone outside a git repo", () => {
+        const root = repo("main");
+        const plain = fs.mkdtempSync(path.join(os.tmpdir(), "qa-init-nogit-"));
+        try {
+            runInit({ root, withMcp: false });
+            assert.equal(pushBranches(root), "[main, master]");
+            assert.equal(detectDefaultBranch(plain), undefined);
+            runInit({ root: plain, withMcp: false });
+            assert.equal(pushBranches(plain), "[main, master]");
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+            fs.rmSync(plain, { recursive: true, force: true });
         }
     });
 });

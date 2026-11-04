@@ -122,6 +122,8 @@ export interface ReleaseReport {
     preExistingCount: number;
     /** Failures also on the base branch that passed on retry: flaky there too, not still failing. */
     preExistingFlakyCount?: number;
+    /** Branch the PR merges into (e.g. dev, pre-dev, main), used in the wording. Detected, never configured. */
+    baseBranch?: string;
     fixedCount: number;
     affectedAreas: string[];
     primaryGroup?: FailureGroup;

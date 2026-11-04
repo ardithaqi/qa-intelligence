@@ -10,14 +10,29 @@ export interface GitHubClient {
     prHeadSha(pr: number): Promise<string | null>;
     /** Zip of the newest artifact whose name starts with `prefix`, from runs of `headSha`. */
     artifactForCommit(headSha: string, prefix: string): Promise<Uint8Array | null>;
-    /** Zip of the newest artifact named `name` from push runs on `branch`. */
-    artifactForBranch(branch: string, name: string): Promise<Uint8Array | null>;
+    /**
+     * Test results from the newest finished run on `branch` (any trigger, not cancelled) that has
+     * any: every matching upload of that run (one per brand in a multi-brand setup), or null.
+     */
+    baselineForBranch(branch: string): Promise<{ runId: number; zips: Uint8Array[] } | null>;
     /** Status of the workflow runs for a commit ("queued", "in_progress", "completed", ...). */
     runStatusesForCommit(headSha: string): Promise<string[]>;
 }
 
 function git(args: string[], cwd: string): string {
     return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+}
+
+/**
+ * Which uploads of one run hold its test results, whatever they're called: a dedicated
+ * `playwright-artifacts-baseline` first, then full results folders (`...-raw-...`), then any
+ * other `playwright-artifacts-*` (HTML reports excluded). Several matches = several brands.
+ */
+export function pickBaselineArtifacts(names: string[]): string[] {
+    if (names.includes("playwright-artifacts-baseline")) return ["playwright-artifacts-baseline"];
+    const results = names.filter((n) => /^playwright-artifacts-/.test(n) && !/report/.test(n));
+    const raw = results.filter((n) => /-raw-/.test(n));
+    return raw.length ? raw : results;
 }
 
 /** owner/repo from the `origin` remote (https or ssh GitHub URLs). */
@@ -48,11 +63,20 @@ export function headSha(cwd: string): string | null {
     }
 }
 
-/** Remote default branch as a ref (e.g. origin/main), falling back to origin/main. */
+/** The repo's default branch as a ref (origin/main, origin/dev, ...), detected from git. */
 export function defaultBaseRef(cwd: string): string {
     try {
         return git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd);
     } catch {
+        // origin/HEAD isn't always set (e.g. a fetch without clone): the first common name that exists.
+        for (const name of ["main", "master", "dev"]) {
+            try {
+                git(["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${name}`], cwd);
+                return `origin/${name}`;
+            } catch {
+                /* not this one */
+            }
+        }
         return "origin/main";
     }
 }
@@ -126,9 +150,17 @@ export function createGitHubClient(owner: string, repo: string, token: string): 
             const { data } = await octokit.actions.listWorkflowRunsForRepo({ owner, repo, head_sha: sha, per_page: 10 });
             return data.workflow_runs.map((r) => r.status ?? "unknown");
         },
-        async artifactForBranch(branch, name) {
-            const { data } = await octokit.actions.listWorkflowRunsForRepo({ owner, repo, branch, event: "push", status: "completed", per_page: 5 });
-            return newestArtifact(data.workflow_runs.map((r) => r.id), (n) => n === name);
+        async baselineForBranch(branch) {
+            const { data } = await octokit.actions.listWorkflowRunsForRepo({ owner, repo, branch, status: "completed", per_page: 20 });
+            for (const run of data.workflow_runs) {
+                if (run.conclusion !== "success" && run.conclusion !== "failure") continue;
+                const { data: list } = await octokit.actions.listWorkflowRunArtifacts({ owner, repo, run_id: run.id, per_page: 100 });
+                const names = pickBaselineArtifacts(list.artifacts.filter((a) => !a.expired).map((a) => a.name));
+                if (!names.length) continue;
+                const ids = list.artifacts.filter((a) => names.includes(a.name)).map((a) => a.id);
+                return { runId: run.id, zips: await Promise.all(ids.map(download)) };
+            }
+            return null;
         },
     };
 }

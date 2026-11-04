@@ -187,6 +187,7 @@ describe("analyzeRelease", () => {
                     ],
                 },
                 runSummary: { total: 248, passed: 240, failed: 6, flaky: 1, skipped: 1 },
+                baseBranch: "main",
             }
         );
 
@@ -223,6 +224,18 @@ describe("analyzeRelease", () => {
         assert.equal(report.primaryGroup, undefined);
     });
 
+    it("names the branch the PR merges into, whatever it is", () => {
+        const known = diff({ newFailures: [f("tests/checkout.spec.ts")], unchangedFailures: [f("tests/legacy.spec.ts"), f("tests/search.spec.ts", { is_flaky_suspected: true })] });
+        for (const branch of ["dev", "pre-dev", "master"]) {
+            const md = formatReleaseComment(analyzeRelease(known, { baseBranch: branch }));
+            assert.match(md, new RegExp(`1 still failing from ${branch} · 1 flaky on ${branch} too`));
+            assert.match(md, new RegExp(`<summary>Still failing from ${branch} \\(1\\) · Flaky on ${branch} too \\(1\\)</summary>`));
+            assert.doesNotMatch(md, /\bmain\b/);
+        }
+        const unknown = formatReleaseComment(analyzeRelease(known));
+        assert.match(unknown, /1 still failing from the base branch/);
+    });
+
     it("never says SAFE when Playwright reports failed tests but none were recorded", () => {
         const report = analyzeRelease(diff({}), { runSummary: { total: 2, passed: 0, failed: 2, flaky: 0, skipped: 0 } });
         assert.equal(report.decision, "REVIEW REQUIRED");
@@ -247,7 +260,7 @@ describe("analyzeRelease", () => {
 
     it("a test flaky on main and in the PR is 'flaky on main too', not still failing", () => {
         const flaky = f("tests/search.spec.ts", { is_flaky_suspected: true });
-        const report = analyzeRelease(diff({ newFailures: [f("tests/checkout.spec.ts")], unchangedFailures: [flaky] }));
+        const report = analyzeRelease(diff({ newFailures: [f("tests/checkout.spec.ts")], unchangedFailures: [flaky] }), { baseBranch: "main" });
         assert.equal(report.preExistingCount, 0);
         assert.equal(report.preExistingFlakyCount, 1);
         const md = formatReleaseComment(report);
@@ -333,7 +346,7 @@ describe("formatReleaseComment", () => {
     it("keeps the score breakdown out of the comment and lists main's failures and fixes compactly", () => {
         const report = analyzeRelease(
             diff({ newFailures: [f("tests/checkout.spec.ts")], unchangedFailures: [f("tests/legacy.spec.ts")], fixedFailures: [f("tests/old.spec.ts")] }),
-            { changes: { files: [], warning: "No base ref given (--base); likely-source attribution skipped." } }
+            { changes: { files: [], warning: "No base ref given (--base); likely-source attribution skipped." }, baseBranch: "main" }
         );
         const md = formatReleaseComment(report, diff({ fixedFailures: [f("tests/old.spec.ts")] }), { commit: "" });
         assert.doesNotMatch(md, /More:|\+40|0–29 LOW/, "no score breakdown or legend");

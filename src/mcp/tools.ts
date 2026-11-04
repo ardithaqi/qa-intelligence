@@ -4,7 +4,7 @@ import path from "path";
 import { analyzeRelease } from "../guardian/analyzeRelease";
 import { loadGuardianConfig } from "../guardian/config";
 import { shortReason } from "../guardian/format";
-import { collectChangesWithWorktree } from "../guardian/gitContext";
+import { branchName, collectChangesWithWorktree } from "../guardian/gitContext";
 import { readRunSummary } from "../guardian/runSummary";
 import type { ClassifiedFailure, FailureGroup, ReleaseReport } from "../guardian/types";
 import { computeDiff } from "../lib/computeDiff";
@@ -17,7 +17,6 @@ import { currentBranch, defaultBaseRef, headSha, readFromZip, unzipAll, type Git
 /** CI artifact uploaded by the scaffolded workflow (release-guardian-<run id>). */
 export const REPORT_ARTIFACT_PREFIX = "release-guardian-";
 /** Baseline artifact uploaded on pushes to the default branch. */
-export const BASELINE_ARTIFACT = "playwright-artifacts-baseline";
 
 export interface LoadedReport {
     /** "PR #12" or "local run". */
@@ -73,6 +72,9 @@ function problemLine(cwd: string, g: FailureGroup): string {
 }
 
 /** Compact verdict: the same content as the PR comment, as plain text for an agent. */
+/** The branch the change merges into, as the report recorded it, or a neutral word. */
+const baseWord = (r: ReleaseReport) => r.baseBranch ?? "the base branch";
+
 export function formatVerdictText(cwd: string, loaded: LoadedReport): string {
     const { report: r } = loaded;
     const lines = [
@@ -85,8 +87,8 @@ export function formatVerdictText(cwd: string, loaded: LoadedReport): string {
         lines.push("", "Call explain_problem with an id (e.g. G1) for the cause, fix and error.");
     }
     const extra = [
-        r.preExistingCount ? `${r.preExistingCount} still failing from main (not caused by this change)` : "",
-        r.preExistingFlakyCount ? `${r.preExistingFlakyCount} flaky on main too (passed on retry, not caused by this change)` : "",
+        r.preExistingCount ? `${r.preExistingCount} still failing from ${baseWord(r)} (not caused by this change)` : "",
+        r.preExistingFlakyCount ? `${r.preExistingFlakyCount} flaky on ${baseWord(r)} too (passed on retry, not caused by this change)` : "",
         r.fixedCount ? `${r.fixedCount} fixed` : "",
     ].filter(Boolean);
     if (extra.length) lines.push("", extra.join(" · "));
@@ -173,7 +175,7 @@ async function prVerdict(session: GuardianSession, github: GitHubClient, pr?: nu
         if (statuses.some((s) => s !== "completed")) {
             return `CI is still running for PR #${number} (commit ${sha.slice(0, 7)}). Try again when it finishes, or run analyze_local for a local verdict.`;
         }
-        return `CI ran for PR #${number} (commit ${sha.slice(0, 7)}) but produced no guardian report. Usually main has no baseline yet: the guardian runs once the workflow has run on main. Run analyze_local for a local verdict.`;
+        return `CI ran for PR #${number} (commit ${sha.slice(0, 7)}) but produced no guardian report. Usually the base branch has no test results yet: the guardian runs once the workflow has run there. Run analyze_local for a local verdict.`;
     }
 
     session.last = { source: `PR #${number} @ ${sha.slice(0, 7)}`, ...parseSaved(json) };
@@ -197,30 +199,47 @@ export function latestRun(dir: string): string {
     return runs.length ? path.join(dir, runs[runs.length - 1]) : dir;
 }
 
-/** Baseline failures from main: local baseline-artifacts, else the latest CI baseline. */
+/** Baseline failures from the base branch: local baseline-artifacts, else its latest CI results. */
 async function baselineDir(session: GuardianSession, pwDir: string, base: string): Promise<{ dir?: string; note?: string }> {
     const local = path.join(pwDir, "baseline-artifacts");
     if (fs.existsSync(local)) return { dir: latestRun(local) };
 
+    const branch = branchName(base) ?? base;
     const github = session.deps.github;
-    if (!github) return { note: "No baseline from main: failures already failing there show up as new." };
-    const branch = base.replace(/^origin\//, "");
+    if (!github) return { note: `No baseline from ${branch}: failures already failing there show up as new.` };
     try {
-        const zip = await github.artifactForBranch(branch, BASELINE_ARTIFACT);
-        if (!zip) return { note: `No CI baseline found for ${branch}: failures already failing there show up as new.` };
+        const found = await github.baselineForBranch(branch);
+        if (!found) return { note: `No CI test results found on ${branch}: failures already failing there show up as new.` };
         // Extracted outside the repo, so analyze_local never writes into the project.
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "release-guardian-baseline-"));
-        for (const [name, data] of Object.entries(unzipAll(zip))) {
-            if (name.endsWith("/")) continue;
-            const target = path.join(dir, name);
-            if (!target.startsWith(dir + path.sep)) continue; // zip-slip guard
-            fs.mkdirSync(path.dirname(target), { recursive: true });
-            fs.writeFileSync(target, data);
-        }
+        found.zips.forEach((zip, i) => {
+            const into = path.join(dir, String(i));
+            for (const [name, data] of Object.entries(unzipAll(zip))) {
+                if (name.endsWith("/")) continue;
+                const target = path.join(into, name);
+                if (!target.startsWith(into + path.sep)) continue; // zip-slip guard
+                fs.mkdirSync(path.dirname(target), { recursive: true });
+                fs.writeFileSync(target, data);
+            }
+        });
         return { dir };
     } catch {
-        return { note: "Couldn't download the CI baseline: failures already failing on main show up as new." };
+        return { note: `Couldn't download the CI test results from ${branch}: failures already failing there show up as new.` };
     }
+}
+
+/**
+ * Tests that ran on the base branch, from its run-summary.json files: next to the run folder
+ * (local), or one per downloaded upload (summed, for one upload per brand).
+ */
+function baselineTotal(baseline: string): number | undefined {
+    const direct = readRunSummary(baseline) ?? readRunSummary(path.dirname(baseline));
+    if (direct) return direct.total;
+    const parts = fs.readdirSync(baseline, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => readRunSummary(path.join(baseline, e.name))?.total)
+        .filter((n): n is number => n != null);
+    return parts.length ? parts.reduce((a, b) => a + b, 0) : undefined;
 }
 
 /** Start time encoded in a run folder name (run-2026-11-04T09-37-29-829Z), or undefined. */
@@ -272,8 +291,8 @@ export async function analyzeLocal(session: GuardianSession, base?: string): Pro
     // and the verdict covers only what ran.
     const ran = readRunSummary(current)?.total;
     // run-summary.json sits in the artifacts folder, one level above the run folder.
-    const onMain = baseline ? (readRunSummary(baseline) ?? readRunSummary(path.dirname(baseline)))?.total : undefined;
-    const partial = ran != null && onMain != null && ran < onMain;
+    const onBase = baseline ? baselineTotal(baseline) : undefined;
+    const partial = ran != null && onBase != null && ran < onBase;
     if (partial) diff.fixedFailures = [];
 
     const historyFile = path.join(pwDir, ".cache", "failure-history.json");
@@ -282,11 +301,12 @@ export async function analyzeLocal(session: GuardianSession, base?: string): Pro
         runSummary: readRunSummary(current),
         history: fs.existsSync(historyFile) ? loadHistory(historyFile) : undefined,
         config: loadGuardianConfig(path.join(pwDir, "release-guardian.config.json")).config,
+        baseBranch: branchName(baseRef),
     });
 
     session.last = { source: "local run", report, diff };
     const warning = partial
-        ? `Partial run: only ${ran} of ${onMain} tests ran (main ran ${onMain}). This verdict covers only those tests; run the full suite (npx playwright test) before merging.\n\n`
+        ? `Partial run: only ${ran} of ${onBase} tests ran (${baseWord(report)} ran ${onBase}). This verdict covers only those tests; run the full suite (npx playwright test) before merging.\n\n`
         : "";
     return warning + formatVerdictText(cwd, session.last) + (note ? `\n\nNote: ${note}` : "");
 }
@@ -367,7 +387,8 @@ export function failureHistory(session: GuardianSession, test: string): string {
         const seen = f.failure.occurrence_count
             ? `failed ${f.failure.occurrence_count} time(s)${f.failure.first_seen ? ` since ${f.failure.first_seen.slice(0, 10)}` : ""}`
             : "no recurrence data";
-        const when = f.lifecycle === "existing" ? (f.classification.category === "flaky" ? "also flaky on main" : "also failing on main") : "new in this change";
+        const base = baseWord(loaded!.report);
+        const when = f.lifecycle === "existing" ? (f.classification.category === "flaky" ? `also flaky on ${base}` : `also failing on ${base}`) : "new in this change";
         lines.push(`${repoPath(session.deps.cwd, f.failure.file)}:${f.failure.line}: ${categoryLabel(f.classification.category)}, ${when}, ${seen} [${loaded!.source}]`);
     }
 
