@@ -86,6 +86,7 @@ export function formatVerdictText(cwd: string, loaded: LoadedReport): string {
     }
     const extra = [
         r.preExistingCount ? `${r.preExistingCount} still failing from main (not caused by this change)` : "",
+        r.preExistingFlakyCount ? `${r.preExistingFlakyCount} flaky on main too (passed on retry, not caused by this change)` : "",
         r.fixedCount ? `${r.fixedCount} fixed` : "",
     ].filter(Boolean);
     if (extra.length) lines.push("", extra.join(" · "));
@@ -288,7 +289,7 @@ export function failureHistory(session: GuardianSession, test: string): string {
         const seen = f.failure.occurrence_count
             ? `failed ${f.failure.occurrence_count} time(s)${f.failure.first_seen ? ` since ${f.failure.first_seen.slice(0, 10)}` : ""}`
             : "no recurrence data";
-        const when = f.lifecycle === "existing" ? "also failing on main" : "new in this change";
+        const when = f.lifecycle === "existing" ? (f.classification.category === "flaky" ? "also flaky on main" : "also failing on main") : "new in this change";
         lines.push(`${repoPath(session.deps.cwd, f.failure.file)}:${f.failure.line}: ${categoryLabel(f.classification.category)}, ${when}, ${seen} [${loaded!.source}]`);
     }
 

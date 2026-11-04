@@ -186,6 +186,7 @@ function countsLine(report: ReleaseReport, options: CommentOptions): string {
             : "",
         fresh ? `${fresh} new failure${fresh === 1 ? "" : "s"}` : report.failureCount === 0 && report.testsAnalyzed != null ? "" : "no new failures",
         report.preExistingCount ? `${report.preExistingCount} still failing from main` : "",
+        report.preExistingFlakyCount ? `${report.preExistingFlakyCount} flaky on main too` : "",
         report.fixedCount ? `${report.fixedCount} fixed` : "",
         options.runUrl ? `[CI run](${options.runUrl})` : "",
     ].filter(Boolean);
@@ -213,10 +214,17 @@ function footer(report: ReleaseReport): string {
 function moreSection(report: ReleaseReport, diff: DiffResult | undefined, options: CommentOptions): string {
     const out: string[] = [];
 
-    const existing = report.failures.filter((f) => f.lifecycle === "existing");
+    const existing = report.failures.filter((f) => f.lifecycle === "existing" && f.classification.category !== "flaky");
     if (existing.length) {
         out.push(`**Still failing from main** (not caused by this PR)`);
         for (const e of existing) out.push(`- ${testLink(options, e.failure)} · ${md(shortReason(e.failure))}`);
+        out.push("");
+    }
+
+    const flakyOnMain = report.failures.filter((f) => f.lifecycle === "existing" && f.classification.category === "flaky");
+    if (flakyOnMain.length) {
+        out.push(`**Flaky on main too** (passed on retry, not caused by this PR)`);
+        for (const e of flakyOnMain) out.push(`- ${testLink(options, e.failure)}`);
         out.push("");
     }
 
@@ -231,6 +239,7 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
 
     const label = [
         existing.length ? `Still failing from main (${existing.length})` : "",
+        flakyOnMain.length ? `Flaky on main too (${flakyOnMain.length})` : "",
         fixed.length ? `Fixed by this PR (${fixed.length})` : "",
     ].filter(Boolean).join(" · ");
 

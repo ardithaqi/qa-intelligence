@@ -116,7 +116,10 @@ export interface ReleaseReport {
     failureCount: number;
     /** Counts for new failures only - the ones this PR is accountable for. */
     counts: CategoryCounts;
+    /** Failures also failing on the base branch that still fail after retries. */
     preExistingCount: number;
+    /** Failures also on the base branch that passed on retry: flaky there too, not still failing. */
+    preExistingFlakyCount?: number;
     fixedCount: number;
     affectedAreas: string[];
     primaryGroup?: FailureGroup;

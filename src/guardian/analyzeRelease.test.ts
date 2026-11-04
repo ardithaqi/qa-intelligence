@@ -230,6 +230,17 @@ describe("analyzeRelease", () => {
         assert.equal(report.preExistingCount, 1);
     });
 
+    it("a test flaky on main and in the PR is 'flaky on main too', not still failing", () => {
+        const flaky = f("tests/search.spec.ts", { is_flaky_suspected: true });
+        const report = analyzeRelease(diff({ newFailures: [f("tests/checkout.spec.ts")], unchangedFailures: [flaky] }));
+        assert.equal(report.preExistingCount, 0);
+        assert.equal(report.preExistingFlakyCount, 1);
+        const md = formatReleaseComment(report);
+        assert.doesNotMatch(md, /still failing from main/i);
+        assert.match(md, /1 flaky on main too/);
+        assert.match(md, /<summary>Flaky on main too \(1\)<\/summary>/);
+    });
+
     it("uses history: an intermittent test failing with a timeout is flaky, not unknown", () => {
         const timeout = f("tests/search.spec.ts", { failure_type: "timeout", errorMessage: "Test timeout of 30000ms exceeded." });
         const runs = Array.from({ length: 10 }, (_, i) => ({
