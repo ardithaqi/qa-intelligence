@@ -9,7 +9,7 @@ import { explainRootCauses, filesForAi, groupsForAi } from "../guardian/aiRootCa
 import { analyzeRelease, type AnalyzeReleaseOptions } from "../guardian/analyzeRelease";
 import { loadGuardianConfig, DEFAULT_CONFIG_FILE } from "../guardian/config";
 import { formatReleaseComment, type CommentOptions } from "../guardian/format";
-import { collectChanges, collectPatches } from "../guardian/gitContext";
+import { branchName, collectChanges, collectPatches } from "../guardian/gitContext";
 import { readRunSummary } from "../guardian/runSummary";
 import type { ReleaseReport } from "../guardian/types";
 import { computeDiff } from "../lib/computeDiff";
@@ -113,6 +113,7 @@ export async function runAnalyze(
             markdown: { type: "string", default: "release-guardian.md" },
             "fail-on": { type: "string", default: env.RELEASE_GUARDIAN_FAIL_ON || "review" },
             ai: { type: "string", default: env.RELEASE_GUARDIAN_AI || "auto" },
+            "base-branch": { type: "string" },
         },
     });
     const aiMode = values.ai as (typeof AI_MODES)[number];
@@ -136,6 +137,8 @@ export async function runAnalyze(
         runSummary: readRunSummary(values.current),
         history: fs.existsSync(values.history) ? loadHistory(values.history) : undefined,
         config,
+        // Detected: the PR's target branch on GitHub, else the name in --base (origin/dev -> dev).
+        baseBranch: values["base-branch"] ?? (env.GITHUB_BASE_REF || branchName(base)),
     };
     let report = analyzeRelease(diff, options);
 

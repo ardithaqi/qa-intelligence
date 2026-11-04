@@ -38,10 +38,14 @@ function writeMeta(root: string, spec: string, meta: object) {
 }
 
 function run(root: string, ...args: string[]) {
+    return runWith(root, {}, ...args);
+}
+
+function runWith(root: string, env: NodeJS.ProcessEnv, ...args: string[]) {
     return spawnSync(TSX, [CLI, ...args], {
         cwd: root,
         encoding: "utf8",
-        env: { ...process.env, GITHUB_SHA: "", GITHUB_BASE_REF: "", RELEASE_GUARDIAN_BASE: "", RELEASE_GUARDIAN_FAIL_ON: "", RELEASE_GUARDIAN_AI: "off", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "", AI_API_KEY: "" },
+        env: { ...process.env, GITHUB_SHA: "", GITHUB_BASE_REF: "", RELEASE_GUARDIAN_BASE: "", RELEASE_GUARDIAN_FAIL_ON: "", RELEASE_GUARDIAN_AI: "off", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "", AI_API_KEY: "", ...env },
     });
 }
 
@@ -57,6 +61,24 @@ describe("exitCodeFor", () => {
 });
 
 describe("ai-release-guardian analyze (CLI)", () => {
+    it("detects the branch the PR merges into, with no setting", () => {
+        workspace((root) => {
+            writeMeta(root, "checkout.spec.ts", { file: "tests/checkout.spec.ts", line: 9, retry: 1, errorMessage: "Expected: 30\nReceived: 20" });
+            const sha = execFileSync("git", ["rev-parse", "main"], { cwd: root, encoding: "utf8" }).trim();
+            const read = () => JSON.parse(fs.readFileSync(path.join(root, "release-report.json"), "utf8")).report.baseBranch;
+
+            // On a GitHub PR run: the PR's target branch, even when --base is a commit SHA.
+            runWith(root, { GITHUB_BASE_REF: "pre-dev" }, "analyze", "--base", sha, "--fail-on", "never");
+            assert.equal(read(), "pre-dev");
+            // Locally: the branch named in --base.
+            run(root, "analyze", "--base", "origin/dev", "--fail-on", "never");
+            assert.equal(read(), "dev");
+            // A bare SHA names no branch.
+            run(root, "analyze", "--base", sha, "--fail-on", "never");
+            assert.equal(read(), undefined);
+        });
+    });
+
     it("blocks a new checkout regression, attributes it, and writes both reports", () => {
         workspace((root) => {
             writeMeta(root, "checkout.spec.ts", {

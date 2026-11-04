@@ -201,6 +201,11 @@ function problemBlock(group: FailureGroup, options: CommentOptions): string {
 
 // --- comment -------------------------------------------------------------------
 
+/** "dev", "pre-dev", "main"...: the branch the PR merges into, or a neutral word when unknown. */
+function baseName(report: ReleaseReport): string {
+    return report.baseBranch ?? "the base branch";
+}
+
 function countsLine(report: ReleaseReport, options: CommentOptions): string {
     const c = report.counts;
     const fresh = c.regression + c.flaky + c.infrastructure + c.test_issue + c.unknown;
@@ -209,8 +214,8 @@ function countsLine(report: ReleaseReport, options: CommentOptions): string {
             ? report.failureCount === 0 && !report.failedInRun ? `all ${report.testsAnalyzed} tests passed` : `${report.testsAnalyzed} tests`
             : "",
         fresh ? `${fresh} new failure${fresh === 1 ? "" : "s"}` : report.failureCount === 0 && report.testsAnalyzed != null ? "" : "no new failures",
-        report.preExistingCount ? `${report.preExistingCount} still failing from main` : "",
-        report.preExistingFlakyCount ? `${report.preExistingFlakyCount} flaky on main too` : "",
+        report.preExistingCount ? `${report.preExistingCount} still failing from ${baseName(report)}` : "",
+        report.preExistingFlakyCount ? `${report.preExistingFlakyCount} flaky on ${baseName(report)} too` : "",
         report.fixedCount ? `${report.fixedCount} fixed` : "",
         options.runUrl ? `[CI run](${options.runUrl})` : "",
     ].filter(Boolean);
@@ -240,14 +245,14 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
 
     const existing = report.failures.filter((f) => f.lifecycle === "existing" && f.classification.category !== "flaky");
     if (existing.length) {
-        out.push(`**Still failing from main** (not caused by this PR)`);
+        out.push(`**Still failing from ${baseName(report)}** (not caused by this PR)`);
         for (const e of existing) out.push(`- ${testLink(options, e.failure)} · ${md(shortReason(e.failure))}`);
         out.push("");
     }
 
     const flakyOnMain = report.failures.filter((f) => f.lifecycle === "existing" && f.classification.category === "flaky");
     if (flakyOnMain.length) {
-        out.push(`**Flaky on main too** (passed on retry, not caused by this PR)`);
+        out.push(`**Flaky on ${baseName(report)} too** (passed on retry, not caused by this PR)`);
         for (const e of flakyOnMain) out.push(`- ${testLink(options, e.failure)}`);
         out.push("");
     }
@@ -262,8 +267,8 @@ function moreSection(report: ReleaseReport, diff: DiffResult | undefined, option
     if (out.length === 0) return "";
 
     const label = [
-        existing.length ? `Still failing from main (${existing.length})` : "",
-        flakyOnMain.length ? `Flaky on main too (${flakyOnMain.length})` : "",
+        existing.length ? `Still failing from ${baseName(report)} (${existing.length})` : "",
+        flakyOnMain.length ? `Flaky on ${baseName(report)} too (${flakyOnMain.length})` : "",
         fixed.length ? `Fixed by this PR (${fixed.length})` : "",
     ].filter(Boolean).join(" · ");
 

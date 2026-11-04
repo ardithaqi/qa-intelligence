@@ -109,3 +109,14 @@ export function collectPatches(
     }
     return patches;
 }
+
+/**
+ * Branch name for the wording, from a base ref: "origin/dev" -> "dev", "pre-dev" -> "pre-dev".
+ * Undefined for a commit SHA or HEAD-relative ref, which name no branch.
+ */
+export function branchName(ref: string | undefined): string | undefined {
+    if (!ref) return undefined;
+    const name = ref.replace(/^refs\/(heads|remotes)\//, "").replace(/^origin\//, "");
+    if (/^[0-9a-f]{7,40}$/i.test(name) || /^HEAD([~^].*)?$/.test(name)) return undefined;
+    return name;
+}
