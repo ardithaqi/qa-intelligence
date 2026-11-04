@@ -5,10 +5,10 @@ function formatWatchlistSection(entries: FlakyWatchlistEntry[]): string {
 
     let section = `### Flaky Watchlist (${entries.length})\n\n`;
     section +=
-        "For visibility only — intermittent across recent CI runs. **Does not block merge.**\n\n";
+        "For visibility only: intermittent across recent CI runs. **Does not block merge.**\n\n";
 
     for (const entry of entries) {
-        section += `• ${entry.testFile} — unstable in ${entry.failCount} of last ${entry.totalRuns} CI runs\n`;
+        section += `• ${entry.testFile}: unstable in ${entry.failCount} of last ${entry.totalRuns} CI runs\n`;
     }
 
     return section + "\n";
@@ -54,6 +54,20 @@ function formatSection(
 }
 
 export function formatDiffComment(diff: DiffResult): string {
+    const commit = process.env.GITHUB_SHA?.slice(0, 7);
+
+    let body = "## AI Failure Diff Summary\n\n";
+    if (commit) body += `Commit: ${commit}\n`;
+    body += "\n";
+
+    return body + formatDiffSections(diff);
+}
+
+/** The per-failure sections of the diff comment, without the header. */
+export function formatDiffSections(
+    diff: DiffResult,
+    options: { gateNote?: boolean } = {}
+): string {
     const unchangedFailures = diff.unchangedFailures ?? [];
     const newFailures = diff.newFailures ?? [];
     const fixedFailures = diff.fixedFailures ?? [];
@@ -61,15 +75,11 @@ export function formatDiffComment(diff: DiffResult): string {
     const flaky = newFailures.filter((f) => f.is_flaky_suspected);
     const realNewFailures = newFailures.filter((f) => !f.is_flaky_suspected);
 
-    const commit = process.env.GITHUB_SHA?.slice(0, 7);
+    let body = "";
 
-    let body = "## AI Failure Diff Summary\n\n";
-    if (commit) body += `Commit: ${commit}\n`;
-    body += "\n";
-
-    if (unchangedFailures.length > 0) {
+    if (unchangedFailures.length > 0 && options.gateNote !== false) {
         body +=
-            "⚠️ **Pre-existing failures** from the base branch are still failing. These are shown for visibility only — **they do not block this PR**. Only **New Issues** block merge.\n\n";
+            "⚠️ **Pre-existing failures** from the base branch are still failing. These are shown for visibility only, **they do not block this PR**. Only **New Issues** block merge.\n\n";
     }
 
     body += formatSection("New Issues", realNewFailures);
@@ -87,7 +97,7 @@ export function formatClearDiffComment(): string {
     let body = "## AI Failure Diff Summary\n\n";
     if (commit) body += `Commit: ${commit}\n`;
     body +=
-        "\n✅ **All tests passed** — no new, ongoing, or flaky failures to report.\n";
+        "\n✅ **All tests passed**. No new, ongoing, or flaky failures to report.\n";
 
     return body;
 }

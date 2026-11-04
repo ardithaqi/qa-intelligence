@@ -1,4 +1,4 @@
-name: QA Intelligence CI
+name: AI Release Guardian
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: qa-intelligence-${{ github.workflow }}-${{ github.ref }}
-  # Only cancel superseded PR runs. Never cancel a push/merge run mid-flight —
+  # Only cancel superseded PR runs. Never cancel a push/merge run mid-flight  - 
   # if a test's cleanup (e.g. restoring a shared fixture in a `finally`) gets
   # killed, it can leave shared test data corrupted for every run after it.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -23,13 +23,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      HAS_AI_KEY: ${{ secrets.OPENAI_API_KEY != '' && 'true' || 'false' }}
+      # AI analysis is optional. Set OPENAI_API_KEY or ANTHROPIC_API_KEY as a repo secret
+      # (provider is picked from whichever key exists, or set AI_PROVIDER as a repo variable).
+      HAS_AI_KEY: ${{ (secrets.OPENAI_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '') && 'true' || 'false' }}
+      # PR head commit, so file links in the guardian comment point at the PR's code.
+      RELEASE_GUARDIAN_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     defaults:
       run:
         working-directory: playwright
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history so the guardian can see which files/commits the PR changed.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -57,7 +64,7 @@ jobs:
             | jq -r '.[0].head.sha // empty')
 
           if [ -z "$PR_HEAD_SHA" ]; then
-            echo "No PR found for this merge commit — will run fresh instead."
+            echo "No PR found for this merge commit - will run fresh instead."
             exit 0
           fi
 
@@ -67,7 +74,7 @@ jobs:
             | jq -r '.workflow_runs[0].id // empty')
 
           if [ -z "$RUN_ID" ]; then
-            echo "PR found but it has no completed run — will run fresh instead."
+            echo "PR found but it has no completed run - will run fresh instead."
             exit 0
           fi
 
@@ -80,7 +87,8 @@ jobs:
         uses: dawidd6/action-download-artifact@v21
         with:
           run_id: ${{ steps.source-pr.outputs.run_id }}
-          name: ai-failure-artifacts
+          # Must match the PR run's "Upload failure artifacts" name below.
+          name: playwright-artifacts-${{ steps.source-pr.outputs.run_id }}
           path: reused-artifacts
           if_no_artifact_found: ignore
 
@@ -103,6 +111,9 @@ jobs:
         if: github.event_name == 'pull_request' || steps.reused.outputs.reused != 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
           AI_ANALYSIS: ${{ env.HAS_AI_KEY }}
           BASE_URL: https://your-app.example.com
           HEADLESS: true
@@ -117,7 +128,7 @@ jobs:
         run: |
           mkdir -p artifacts
           # A fully green run leaves `artifacts/` empty, and the upload step
-          # below skips empty directories — so a clean PR would never
+          # below skips empty directories - so a clean PR would never
           # produce anything for a later merge to reuse. This marker
           # guarantees an artifact always exists, recording "zero failures"
           # as a real, reusable baseline. Must NOT be a dotfile: upload's
@@ -179,21 +190,26 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "No baseline yet — expected until this workflow merges and runs on push to the default branch."
+            echo "No baseline yet - expected until this workflow merges and runs on push to the default branch."
           fi
 
+      # --- AI Release Guardian -------------------------------------------------
+      # Works with or without an AI key: without one, failures are classified
+      # from Playwright's error output; with one, AI analysis adds evidence.
+
       - name: Compute failure diff
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
-        run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        # The guardian step below owns the merge gate.
+        run: npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts --fail-on-blocking false
 
       - name: Restore failure history cache
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         uses: actions/cache@v4
         with:
           path: playwright/.cache
           # A key that never changes (e.g. just the repo name) restores fine
           # across commits, but actions/cache also skips SAVING once a run
-          # gets an exact hit on the primary key — so a permanently-stable
+          # gets an exact hit on the primary key - so a permanently-stable
           # key still stops accumulating after its very first save. A
           # per-run key + prefix restore-keys avoids both failure modes:
           # every run saves under a fresh key (so saving never gets
@@ -203,16 +219,50 @@ jobs:
             failure-history-${{ github.repository }}-
 
       - name: Update failure history (recurrence)
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         run: npx qa-intelligence-history
 
-      - name: Comment PR with AI summary
-        if: always() && github.event_name == 'pull_request' && env.HAS_AI_KEY == 'true' && steps.baseline.outputs.available == 'true'
+      - name: Assess release risk
+        id: guardian
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        # --fail-on review: fail the job on BLOCK or REVIEW REQUIRED (recommended).
+        #           block:  fail only on BLOCK.   never: report only.
+        # With an AI key set, one extra call reads the failing tests + the PR diff and names the
+        # change that broke them (--ai auto). Without a key this step is fully deterministic.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+        run: |
+          npx ai-release-guardian analyze \
+            --current artifacts \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --fail-on review
+
+      - name: Write job summary
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        run: if [ -f release-guardian.md ]; then cat release-guardian.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Comment PR with release assessment
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          npx qa-intelligence-comment \
-            --diff failure-diff.json \
-            --repo ${{ github.repository }} \
-            --pr ${{ github.event.pull_request.number }} \
-            --token "$GITHUB_TOKEN"
+          if [ -f release-report.json ]; then
+            npx ai-release-guardian comment \
+              --report release-report.json \
+              --repo "${{ github.repository }}" \
+              --pr "${{ github.event.pull_request.number }}"
+          fi
+
+      - name: Upload release report
+        if: always() && github.event_name == 'pull_request' && steps.baseline.outputs.available == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-guardian-${{ github.run_id }}
+          path: |
+            playwright/release-report.json
+            playwright/release-guardian.md
+          retention-days: 14
+          if-no-files-found: ignore

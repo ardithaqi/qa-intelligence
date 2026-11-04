@@ -1,5 +1,5 @@
 /**
- * Programmatic API — use in custom CI scripts, GitLab/Jenkins jobs, Slack bots, etc.
+ * Programmatic API - use in custom CI scripts, GitLab/Jenkins jobs, Slack bots, etc.
  * CLIs (qa-intelligence-diff, -history, -comment) wrap these same functions.
  */
 
@@ -32,6 +32,7 @@ export {
     MAX_RUNS,
 } from "./lib/history";
 export type { EnrichedFailure, Failure as HistoryFailure } from "./lib/history";
+export type { Failure } from "./lib/types";
 
 export {
     failureDiffKey,
@@ -50,3 +51,48 @@ export type {
     RunRecord,
     Severity,
 } from "./lib/types";
+
+// --- AI Release Guardian ---------------------------------------------------
+
+export { analyzeRelease } from "./guardian/analyzeRelease";
+export type { AnalyzeReleaseOptions } from "./guardian/analyzeRelease";
+export { classifyFailure } from "./guardian/classify";
+export type { ClassifyInput } from "./guardian/classify";
+export { attributeFailure, detectArea } from "./guardian/attribution";
+export { groupFailures } from "./guardian/group";
+export { scoreRisk, riskLevel, RISK_WEIGHTS } from "./guardian/risk";
+export { decideRelease, BLOCK_CONFIDENCE } from "./guardian/decision";
+export { collectChanges } from "./guardian/gitContext";
+export { readRunSummary, RUN_SUMMARY_FILENAME } from "./guardian/runSummary";
+export { DEFAULT_CONFIG, loadGuardianConfig } from "./guardian/config";
+export { formatReleaseComment, GUARDIAN_COMMENT_HEADER } from "./guardian/format";
+export { formatDiffSections } from "./lib/format";
+export { errorSignature, inferFailureType } from "./lib/failureSignals";
+export type {
+    Attribution,
+    CategoryCounts,
+    ChangeContext,
+    ChangedFile,
+    Classification,
+    ClassifiedFailure,
+    FailureCategory,
+    FailureGroup,
+    FailureLifecycle,
+    GuardianConfig,
+    ReleaseDecision,
+    ReleaseReport,
+    RiskLevel,
+    RiskScore,
+    RunSummary,
+} from "./guardian/types";
+export {
+    buildRootCausePrompt,
+    explainRootCauses,
+    failureRef,
+    filesForAi,
+    parseRootCauseResponse,
+    AI_ATTRIBUTION_CAP,
+} from "./guardian/aiRootCause";
+export { collectPatches } from "./guardian/gitContext";
+export { verdictAlert } from "./guardian/format";
+export type { AiCause } from "./guardian/types";

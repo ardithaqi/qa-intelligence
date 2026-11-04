@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { runInit } from "../cli/init";
+import { CI_SCAFFOLD, MCP_CONFIG_FILES, PLAYWRIGHT_SCAFFOLD, runInit, writeMcpConfigs } from "../cli/init";
 
 const PLAYWRIGHT_TEMPLATE_FILES = [
     "playwright/.env.example",
@@ -70,5 +70,69 @@ describe("runInit", () => {
 
         assert.ok(!written.some((f) => f.includes(".github")));
         assert.ok(fs.existsSync(path.join(tempRoot, "playwright/package.json")));
+    });
+});
+
+describe("published template files", () => {
+    it("package.json ships exactly the files init copies, nothing else from templates/", () => {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"));
+        const shipped = (pkg.files as string[]).filter((f) => f.startsWith("templates")).sort();
+        const scaffolded = [...PLAYWRIGHT_SCAFFOLD, ...CI_SCAFFOLD].map((e) => `templates/${e.template}`).sort();
+
+        assert.deepEqual(shipped, scaffolded);
+        assert.ok(!shipped.includes("templates"), "never publish the whole templates/ folder");
+    });
+});
+
+describe("MCP config for AI assistants", () => {
+    const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "qa-init-mcp-"));
+
+    it("registers release-guardian for Claude Code and Cursor, running the local install", () => {
+        const root = tmp();
+        try {
+            const { written } = runInit({ root, withCi: false });
+            assert.ok(written.includes(".mcp.json") && written.includes(".cursor/mcp.json"));
+            for (const rel of MCP_CONFIG_FILES) {
+                const config = JSON.parse(fs.readFileSync(path.join(root, rel), "utf8"));
+                assert.deepEqual(config.mcpServers["release-guardian"], {
+                    command: "node",
+                    args: ["playwright/node_modules/qa-intelligence/dist/cli/guardian.js", "mcp"],
+                });
+            }
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it("keeps servers already configured and doesn't overwrite without --force", () => {
+        const root = tmp();
+        try {
+            fs.writeFileSync(path.join(root, ".mcp.json"), JSON.stringify({ mcpServers: { other: { command: "x" } } }));
+            writeMcpConfigs(root, false);
+            const merged = JSON.parse(fs.readFileSync(path.join(root, ".mcp.json"), "utf8"));
+            assert.deepEqual(Object.keys(merged.mcpServers).sort(), ["other", "release-guardian"]);
+
+            const second = writeMcpConfigs(root, false);
+            assert.deepEqual(second.skipped, [".mcp.json", ".cursor/mcp.json"]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it("leaves an invalid JSON file alone, and --no-mcp writes nothing", () => {
+        const root = tmp();
+        try {
+            fs.writeFileSync(path.join(root, ".mcp.json"), "{ not json");
+            const r = writeMcpConfigs(root, true);
+            assert.match(r.skipped[0], /\.mcp\.json \(not valid JSON, left untouched\)/);
+            assert.equal(fs.readFileSync(path.join(root, ".mcp.json"), "utf8"), "{ not json");
+
+            const other = tmp();
+            runInit({ root: other, withCi: false, withMcp: false });
+            assert.ok(!fs.existsSync(path.join(other, ".mcp.json")));
+            fs.rmSync(other, { recursive: true, force: true });
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });

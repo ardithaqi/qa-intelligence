@@ -1,23 +1,41 @@
-# QA Intelligence
+# AI Release Guardian
 
-**npm:** [`qa-intelligence`](https://www.npmjs.com/package/qa-intelligence)
+**npm:** [`qa-intelligence`](https://www.npmjs.com/package/qa-intelligence) · formerly *QA Intelligence*
 
-The intelligence engine for Playwright CI pipelines — install it into any project or use the full [QA Intelligence Framework](https://github.com/ardithaqi/qa-intelligence-framework) template.
+A release-quality agent for Playwright CI. It watches each PR's test results and answers the question a reviewer actually has: **is this safe to merge?**
 
-- AI-powered failure analysis
-- PR failure diff (new, flaky, still failing, fixed)
-- Flaky test detection (retry-aware)
-- PR blocking on new non-flaky failures
-- Recurrence tracking ("3rd time since...")
+For every failure it works out whether it's a **real regression**, **flaky**, an **infrastructure** problem or a **broken test**. It then groups failures that share a cause, points at the **changed file and commit** most likely responsible, scores **release risk**, and ends with one decision: **SAFE TO MERGE**, **REVIEW REQUIRED** or **BLOCK**.
 
-Use it **without the framework template** — install the package into your existing app repo.
+The PR comment stays short no matter how many tests fail. You get one line per **problem**, not per test, and each line expands to show the tests (linked to the exact line), the likely cause (file and commit) and the error:
 
+```text
+## AI Release Guardian
+┃ Caution
+┃ BLOCK · CRITICAL risk (100/100)
+┃ 3 new regressions in Authentication, Profile, Checkout. Likely cause: src/auth/session.ts (commit 82fa7d0).
+248 tests · 5 new failures · 1 still failing from main · 1 fixed · CI run
+
+▸ Regression · 3 tests · expected "dashboard", got "login" · likely cause src/auth/session.ts
+▸ Infrastructure · report.spec.ts:5 · can't reach server (ERR_CONNECTION_REFUSED)
+▸ Flaky · search.spec.ts:5 · failed, then passed on retry
+▸ Still failing from main (1) · Fixed by this PR (1)
+```
+
+The verdict sits in a GitHub alert box: red for BLOCK, purple for REVIEW REQUIRED, and yellow for SAFE TO MERGE when flaky or infrastructure failures happened (you can merge, but something wobbled). A clean PR is just "SAFE TO MERGE" with no box.
+
+Up to 10 problem lines are shown, and anything beyond that sits behind "…and N more". Failures with the same cause (the same changed file, or the exact same error) share one line.
+
+Every verdict has a reason, one click away: each problem shows why it was classified that way. The full score breakdown (every point and why) is in `release-report.json` rather than the comment. Classification, scoring and the decision are **deterministic code**. AI analysis is optional extra evidence and never the verdict.
+
+Still included from QA Intelligence: AI failure analysis, PR failure diff (new / flaky / still failing / fixed), retry-aware flaky detection, recurrence tracking and the Flaky Watchlist.
+
+Install it into your existing app repo, or start from the [framework template](https://github.com/ardithaqi/qa-intelligence-framework).
 
 ---
 
 ## Quick start
 
-Run from your **repo root** (not inside `playwright/`). You do **not** need a `playwright/` folder beforehand — `init` creates it.
+Run from your **repo root** (not inside `playwright/`). You do **not** need a `playwright/` folder beforehand - `init` creates it.
 
 ```bash
 npx qa-intelligence init
@@ -27,22 +45,22 @@ npm install            # installs qa-intelligence + @playwright/test (see playwr
 npx playwright install
 ```
 
-For **local runs with AI failure analysis** (generates per-failure `ai.txt` plus a run-level `ai-summary.md` — needed for `qa-intelligence-diff`), add to `playwright/.env`:
+For **local runs with AI failure analysis** (generates per-failure `ai.txt` plus a run-level `ai-summary.md`), add to `playwright/.env`. This is optional: without it, failures are classified from Playwright's error output.
 
 ```bash
 AI_ANALYSIS=true
 OPENAI_API_KEY=sk-...
 ```
 
-CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. The `qa-intelligence/playwright/reporter` entry in `playwright.config.ts` prints one combined cost rollup line — and the path to the saved `ai-summary.md` — after Playwright's own pass/fail summary, so it's the last thing in the terminal instead of getting buried above the failure output. Set `QA_INTELLIGENCE_TEARDOWN_LOGS=true` if you also want teardown's per-failure "Analyzing"/"Saved AI analysis" lines (off by default).
+CI sets `AI_ANALYSIS=true` in the workflow; locally you must enable it yourself. The `qa-intelligence/playwright/reporter` entry in `playwright.config.ts` prints one combined cost rollup line - and the path to the saved `ai-summary.md` - after Playwright's own pass/fail summary, so it's the last thing in the terminal instead of getting buried above the failure output. Set `RELEASE_GUARDIAN_TEARDOWN_LOGS=true` (or the older `QA_INTELLIGENCE_TEARDOWN_LOGS`) if you also want teardown's per-failure "Analyzing"/"Saved AI analysis" lines (off by default).
 
 ### AI providers
 
-Default provider is **OpenAI** (`gpt-4o-mini`). Configure via env:
+If `AI_PROVIDER` isn't set, the provider comes from whichever key exists: **OpenAI** (`gpt-4o-mini`) if `OPENAI_API_KEY` is set, otherwise **Anthropic** (`claude-haiku-5-5`) if `ANTHROPIC_API_KEY` is set. Empty values count as unset, so a missing GitHub secret doesn't break anything. Configure via env:
 
 | Variable | Purpose |
 |----------|---------|
-| `AI_PROVIDER` | `openai` (default), `anthropic`, or `openai-compatible` |
+| `AI_PROVIDER` | `openai`, `anthropic`, or `openai-compatible` (picked from the keys when unset) |
 | `AI_MODEL` | Model name (provider-specific default if unset) |
 | `OPENAI_API_KEY` | API key for OpenAI (or fallback for `openai-compatible`) |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
@@ -60,7 +78,7 @@ AI_MODEL=gpt-4o-mini
 # Anthropic
 AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
-AI_MODEL=claude-3-5-haiku-latest
+AI_MODEL=claude-haiku-5-5
 
 # OpenAI-compatible (Ollama, Azure, etc.)
 AI_PROVIDER=openai-compatible
@@ -69,16 +87,33 @@ AI_API_KEY=ollama
 AI_MODEL=llama3
 ```
 
-Diff, flaky detection, and PR blocking work **without AI** — analysis is skipped when no API key is set.
+Everything else (diff, classification, grouping, risk, decision) works **without AI**. With no API key set, AI analysis is skipped and failures are classified from Playwright's error output.
+
+**What AI adds.** Without AI you get *where* and *what* (test, line, expected vs received). With AI you also get *why* and *how to fix it*:
+
+- **Root cause from the diff** (`ai-release-guardian analyze`, one call per PR, about $0.0002 with `claude-haiku-5-5`). The AI gets the failing tests, their errors and the actual diff of the changed files, and answers per problem: which file broke it, what changed, and the fix. This finds causes the name-based rules can't. For example, a rounding change in `src/lib/money.ts` breaking a checkout test: the rules see no link between "money" and "checkout", but the AI reads `Math.round` turning into `Math.floor`.
+- **Summary at the top.** With 2 or more problems, the same call writes a short **AI summary** right under the verdict: what broke, which change is behind it, and whether the problems share one cause. With a single problem its own AI line already says that, so no summary is added.
+- **Per-test analysis** (Playwright teardown, one call per failed test, about $0.0005 to $0.001). It sets the failure type and adds a one-line observation to the expanded view.
+
+The rules still make the decision, and the AI is held to a few limits:
+
+- It can only name a file that is actually in the diff.
+- Its pick counts only at 50%+ confidence and is capped at 85%. It reaches 90% only when the name-based rules agree.
+- It can't change a flaky, infrastructure or clear-regression verdict.
+- The one thing it can settle is an "Unclear" failure that it confidently traces to the failing test's own code. That becomes "Broken test" (60%), for example a test that sets a 1s timeout and then waits 3s.
+
+`--ai auto` (default) runs the root-cause call whenever a key is set. Use `--ai off` (or `RELEASE_GUARDIAN_AI=off`) to stay fully deterministic.
+
+In CI, add `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` as a repo secret. The scaffolded workflow passes both, plus the optional `AI_PROVIDER` / `AI_MODEL` repo variables.
 
 `init` scaffolds:
 
-- `playwright/` — `.env.example`, `.gitignore`, `package.json`, `tsconfig.json`, `playwright.config.ts`, example test
-- `.github/workflows/qa-intelligence.yml` — PR diff, history, and comment (skip with `--no-ci`)
+- `playwright/` - `.env.example`, `.gitignore`, `package.json`, `tsconfig.json`, `playwright.config.ts`, example test
+- `.github/workflows/qa-intelligence.yml` - runs tests, assesses the PR, gates the merge and comments (skip with `--no-ci`)
 
-**Then:** add `OPENAI_API_KEY` to GitHub secrets and set `BASE_URL` in the workflow file.
+**Then:** set `BASE_URL` in the workflow file. Optionally add `OPENAI_API_KEY` to GitHub secrets for AI analysis.
 
-**Tests** — always import from the package, not Playwright directly:
+**Tests** - always import from the package, not Playwright directly:
 
 ```ts
 import { test, expect } from "qa-intelligence/playwright";
@@ -101,34 +136,144 @@ npx qa-intelligence init --force      # overwrite files that already exist
 
 ---
 
-## PR behavior
+## How decisions are made
 
-| Failure type | Blocks PR? | Shown in comment |
-|--------------|------------|------------------|
-| New (not flaky) | Yes | New Issues |
-| Flaky (retry pass) | No | Flaky |
-| Still failing from base branch | No | Still Failing |
-| Fixed since base branch | No | Fixed Issues |
-| Intermittent across CI runs | No | Flaky Watchlist |
+### 1. Classification
 
-**Flaky Watchlist** uses the history cache (last 20 PR runs, repo-wide). A test appears when it showed up in the failure report on at least 2 runs but not every run. Tests already listed as **New Issues** or **Still Failing** on this PR are omitted.
+Each failure gets one category, a confidence (0–100) and the evidence behind it. Rules run in this order:
+
+| Category | Evidence |
+|----------|----------|
+| `flaky` | Failed, then passed on retry in this run. Confidence goes up when history shows the same test flipping between pass and fail. |
+| `infrastructure` | Network, DNS, browser-launch or gateway errors (`ECONNREFUSED`, `net::ERR_…`, `502 Bad Gateway`, …), or AI said `environment_error`. |
+| `test_issue` | The test code is broken (`strict mode violation`, `SyntaxError`, missing fixture), or only the test file changed and its locator stopped matching. |
+| `regression` | New on this PR, failed every retry, and the error is an assertion, missing element or navigation failure. Confidence goes up with a related code change and AI agreement, and down with no retries or a flaky history. |
+| `unknown` | Not enough evidence, e.g. a plain timeout with no related change. |
+
+Failures already failing on the base branch are labelled **pre-existing**. They show up in the comment but never add risk or block.
+
+### 2. Root-cause grouping and attribution
+
+The guardian reads `git diff base...HEAD` and the latest commit that touched each changed file. It links a failure to a changed file:
+
+- **in the error output** (80%), or
+- **by shared words and product area** between the test's path, title and URL and the changed path, e.g. `checkout.spec.ts › cart total` and `src/checkout/cartTotal.ts` (35–70%), or
+- **the failing test file itself** changed (50%, which suggests a test issue).
+
+E2E stack traces rarely contain app files, so naming overlap is the main signal. Confidence is capped accordingly, and nothing is reported below 35%. Failures pointing at the same changed file form one group. Several independent suites agreeing adds confidence. Otherwise, failures with the same normalized error message are grouped together.
+
+### 3. Risk score (0–100)
+
+Additive and capped. Only failures **new on this PR** count:
+
+| Factor | Points |
+|--------|--------|
+| First new regression | +40 |
+| Each additional regression | +15 (regressions max 70) |
+| Regression in a critical area (Authentication, Checkout, Payment, Security) | +20 |
+| Each extra affected area | +5 (max 10) |
+| Root cause uncertain (best group < 50%) | +5 |
+| Unknown failure | +10 each (max 20) |
+| Test issue | +5 each (max 10) |
+| Infrastructure failure | +5 each (max 15) |
+| Flaky failure | +2 each (max 6) |
+
+**0–29 LOW · 30–59 MEDIUM · 60–79 HIGH · 80–100 CRITICAL**
+
+### 4. Decision
+
+| Decision | When |
+|----------|------|
+| **BLOCK** | A new regression with ≥ 70% confidence, or any new regression while risk is HIGH/CRITICAL |
+| **REVIEW REQUIRED** | Low-confidence regression, unknown failure, broken test, infrastructure failures in ≥ 5 tests or > 20% of the suite (rerun), or risk ≥ MEDIUM |
+| **SAFE TO MERGE** | Nothing new, or only flaky / infrastructure / pre-existing failures |
+
+### Merge gate
+
+`ai-release-guardian analyze --fail-on <policy>` sets the CI exit code:
+
+| `--fail-on` | Fails the job on |
+|-------------|------------------|
+| `review` (scaffold default) | BLOCK and REVIEW REQUIRED |
+| `block` | BLOCK only |
+| `never` | Nothing (report only) |
+
+Also settable with `RELEASE_GUARDIAN_FAIL_ON`. The older `qa-intelligence-diff` gate (fail on any new non-flaky failure) still works the same way. The scaffold turns it off with `--fail-on-blocking false` so the guardian owns the decision.
+
+### Configuration
+
+Optional `release-guardian.config.json` next to where you run the CLI (`playwright/` in the scaffold):
+
+```json
+{
+  "areas": {
+    "Onboarding": ["onboarding", "welcome", "invite"],
+    "Checkout": ["checkout", "cart", "basket"]
+  },
+  "criticalAreas": ["Authentication", "Checkout", "Payment", "Security", "Onboarding"]
+}
+```
+
+`areas` merges over the defaults (same name replaces); `criticalAreas` replaces the default list.
+
+### Run totals
+
+`Tests analyzed` comes from `artifacts/run-summary.json`, which the `qa-intelligence/playwright/reporter` entry writes. The scaffolded `playwright.config.ts` already includes it.
+
+---
+
+## Failure diff (from QA Intelligence)
+
+The detailed failure diff is still in the comment, under **Failure diff vs base branch**:
+
+| Section | Meaning |
+|---------|---------|
+| New Issues | Failing now, not on base branch (not flaky) |
+| Flaky | Failed then passed on retry |
+| Still Failing | Already failing on base branch |
+| Fixed Issues | Failing on base branch, passing now |
+| Flaky Watchlist | Intermittent across recent CI runs |
+
+**Flaky Watchlist** uses the history cache (last 20 PR runs, repo-wide). A test appears when it showed up in the failure report on at least 2 runs but not every run. Tests already listed as **New Issues** or **Still Failing** on this PR are omitted. The same history also feeds the guardian's flaky classification.
 
 ### Failure history in CI
 
-Recurrence (`3rd time since…`) and the **Flaky Watchlist** need `.cache/failure-history.json` to survive between runs. The `init` workflow uses `actions/cache` on `playwright/.cache` with a **repo-scoped key**:
+Recurrence (`3rd time since…`), the **Flaky Watchlist** and history-based flaky detection need `.cache/failure-history.json` to survive between runs. The `init` workflow caches `playwright/.cache` with a per-run key plus a repo-scoped `restore-keys` prefix:
 
 ```yaml
 - uses: actions/cache@v4
   with:
     path: playwright/.cache
-    key: failure-history-${{ github.repository }}
+    key: failure-history-${{ github.repository }}-${{ github.run_id }}
+    restore-keys: |
+      failure-history-${{ github.repository }}-
 ```
 
-Use a stable key per repository — **not** `${{ github.sha }}`, or every commit starts with an empty history.
+A key that never changes restores fine, but `actions/cache` won't save over an exact hit, so history stops growing. A per-commit SHA key never restores at all. If you scaffolded CI before 1.5.3, update your workflow or re-run `npx qa-intelligence init --force`.
 
-If you scaffolded CI before this fix, update your workflow or re-run `npx qa-intelligence init --force`.
+---
 
-**Already using qa-intelligence?** Replace any cache key like `failure-history-${{ github.repository }}-${{ github.sha }}` with the repo-only key above.
+## AI assistants (MCP)
+
+Claude Code, Cursor and other MCP clients can ask the guardian directly, from the editor: *"why is my PR blocked?"*, *"is this test just flaky?"*. The assistant gets the verdict, the failing tests, the likely cause and the fix, and can then fix the code and re-check it before you push.
+
+**Setup is automatic.** `init` writes `.mcp.json` (Claude Code) and `.cursor/mcp.json` (Cursor) at the repo root. Commit them, and anyone who opens the repo is asked once to enable the `release-guardian` server. To add it by hand:
+
+```bash
+claude mcp add release-guardian -- node playwright/node_modules/qa-intelligence/dist/cli/guardian.js mcp
+```
+
+The config runs the locally installed package with `node`. It doesn't use `npx ai-release-guardian`, because npx would look for a package of that name on npm.
+
+| Tool | What it answers |
+|------|-----------------|
+| `get_pr_verdict` | The PR's verdict from its latest CI run (defaults to the current branch's PR). If CI hasn't produced one yet, it says so and points to `analyze_local`. |
+| `analyze_local` | A verdict for your local Playwright run, including uncommitted changes. Use it before pushing or to check a fix. |
+| `explain_problem` | One problem in detail: tests with file and line, likely cause and commit, AI explanation and fix, error. |
+| `flaky_tests` | The most unstable tests from CI history, plus tests that only passed on retry. |
+| `failure_history` | How often a test failed, since when, and how it's classified now. |
+
+All tools are read-only: nothing is written to the repo or posted to GitHub, and the server makes no AI calls of its own (the assistant is the AI). `get_pr_verdict` reads the PR's `release-guardian-*` CI artifact, which needs a GitHub token (`GITHUB_TOKEN`, or the GitHub CLI signed in with `gh auth login`). `init --no-mcp` skips the editor config.
 
 ---
 
@@ -136,10 +281,31 @@ If you scaffolded CI before this fix, update your workflow or re-run `npx qa-int
 
 | Command | Purpose |
 |---------|---------|
+| `ai-release-guardian analyze` | Classify, group, attribute, score and decide; writes `release-report.json` + `release-guardian.md`; exit code per `--fail-on` |
+| `ai-release-guardian comment` | Post/update the PR comment from `release-report.json` |
+| `ai-release-guardian init` | Same as `qa-intelligence init` |
+| `ai-release-guardian mcp` | MCP server for AI assistants (see [AI assistants (MCP)](#ai-assistants-mcp)) |
 | `qa-intelligence init` | Scaffold project files |
-| `qa-intelligence-diff` | Compare baseline vs current failures |
+| `qa-intelligence-diff` | Compare baseline vs current failures → `failure-diff.json` |
 | `qa-intelligence-history` | Recurrence tracking |
-| `qa-intelligence-comment` | Post/update PR summary |
+| `qa-intelligence-comment` | Post/update the legacy failure-diff comment |
+
+Run `npx ai-release-guardian --help` for all options. A typical PR pipeline:
+
+```bash
+npx qa-intelligence-diff --baseline ../baseline-artifacts --current artifacts --fail-on-blocking false
+npx qa-intelligence-history
+npx ai-release-guardian analyze --base "$BASE_SHA" --fail-on review
+npx ai-release-guardian comment --repo owner/repo --pr 123   # uses $GITHUB_TOKEN
+```
+
+`--base` needs full git history (`actions/checkout` with `fetch-depth: 0`). Without it, attribution is skipped and the comment says so.
+
+### Upgrading from QA Intelligence 1.x
+
+Nothing breaks: same package name, imports, commands and output files. To get the guardian, re-run `npx qa-intelligence init --force` (it overwrites the scaffold files, so back up any local edits), or add the `analyze` and `comment` steps above to your workflow. The guardian updates the existing PR comment in place, whether it has the old or the new header.
+
+1.x missed some failures: a failure in a spec file that wasn't the first one a Playwright worker loaded wrote no record (with retries, only the retry was recorded). 2.0 records every failure, so the first runs after upgrading can show failures that were already there. They show up as "still failing from main" once main has run on 2.0 too.
 
 ---
 
@@ -147,11 +313,11 @@ If you scaffolded CI before this fix, update your workflow or re-run `npx qa-int
 
 | Import | What you get |
 |--------|--------------|
-| `qa-intelligence` | `computeDiff`, `formatDiffComment`, `enrichDiffWithHistory`, history helpers, types |
+| `qa-intelligence` | `analyzeRelease`, `formatReleaseComment`, `collectChanges`, `computeDiff`, `formatDiffComment`, `enrichDiffWithHistory`, history helpers, types |
 | `qa-intelligence/playwright` | `test`, `expect`, `env` |
 | `qa-intelligence/playwright/globalSetup` | Artifact run setup |
 | `qa-intelligence/playwright/globalTeardown` | AI failure analysis |
-| `qa-intelligence/playwright/reporter` | Prints the AI cost rollup last, after Playwright's own summary |
+| `qa-intelligence/playwright/reporter` | Writes `artifacts/run-summary.json` (test totals) and prints the AI cost rollup last |
 | `qa-intelligence/playwright/basePage` | Base page object |
 | `qa-intelligence/playwright/steps` | `step()` helper |
 | `qa-intelligence/config/env` | Validated env config |
@@ -174,13 +340,27 @@ const enriched = enrichDiffWithHistory(diff, ".cache/failure-history.json", {
 const comment = formatDiffComment(enriched);
 ```
 
-Diff, flaky detection, and blocking work without AI keys — same as the CLI.
+Release assessment from any CI (GitLab, Jenkins, …):
+
+```ts
+import { analyzeRelease, collectChanges, formatReleaseComment, readRunSummary } from "qa-intelligence";
+
+const report = analyzeRelease(enriched, {
+  changes: collectChanges(process.env.CI_MERGE_REQUEST_DIFF_BASE_SHA),
+  runSummary: readRunSummary("artifacts"),
+});
+
+console.log(report.decision, report.risk.score, report.primaryGroup?.rootCause);
+const markdown = formatReleaseComment(report, enriched);
+```
+
+The building blocks (`classifyFailure`, `attributeFailure`, `groupFailures`, `scoreRisk`, `decideRelease`) are exported too. All of it works without AI keys.
 
 ---
 
 ## Full template (optional)
 
-Prefer a ready-made project with Docker, example tests, and CI pre-wired? Use the **[qa-intelligence-framework](https://github.com/ardithaqi/qa-intelligence-framework)** template — click "Use this template".
+Prefer a ready-made project with Docker, example tests, and CI pre-wired? Use the **[qa-intelligence-framework](https://github.com/ardithaqi/qa-intelligence-framework)** template - click "Use this template".
 
 For adding to an existing repo with a `playwright/` subfolder, see the [framework adoption guide](https://github.com/ardithaqi/qa-intelligence-framework#add-to-an-existing-project-npm-package) (`Dockerfile`, CI path changes).
 
@@ -189,8 +369,8 @@ For adding to an existing repo with a `playwright/` subfolder, see the [framewor
 ## Recipes
 
 The scaffolded workflow already reuses a merged PR's results on push instead of re-running the suite,
-and skips the AI-analysis pipeline entirely when no API key is configured. For patterns that are too
-project-specific to default to — like splitting a monorepo's suite by which app changed — see
+and runs AI analysis only when an API key is configured. For patterns that are too
+project-specific to default to - like splitting a monorepo's suite by which app changed - see
 [`docs/recipes.md`](docs/recipes.md).
 
 ---

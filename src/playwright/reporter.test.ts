@@ -3,8 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import type { FullResult } from "@playwright/test/reporter";
-import { printAiCostSummary } from "./reporter";
+import type { FullResult, Suite } from "@playwright/test/reporter";
+import { printAiCostSummary, summarizeSuite } from "./reporter";
 import { AI_SUMMARY_DATA_FILENAME, AiSummaryInput } from "../ai/aiSummary";
 
 function fullResult(duration: number): FullResult {
@@ -135,5 +135,21 @@ describe("printAiCostSummary", () => {
             logs[1],
             `Saved AI summary: ${path.join(runDir, "ai-summary.md")}`
         );
+    });
+});
+
+describe("summarizeSuite", () => {
+    it("counts tests by final outcome", () => {
+        const outcomes = ["expected", "expected", "flaky", "unexpected", "skipped"];
+        const suite = { allTests: () => outcomes.map((o) => ({ outcome: () => o })) } as unknown as Suite;
+
+        assert.deepEqual(summarizeSuite(suite, "failed"), {
+            total: 5,
+            passed: 2,
+            failed: 1,
+            flaky: 1,
+            skipped: 1,
+            status: "failed",
+        });
     });
 });

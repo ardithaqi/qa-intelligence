@@ -1,9 +1,9 @@
 import { playwrightTest } from "./playwrightTest";
 
-const { test: base, expect } = playwrightTest;
+const { expect } = playwrightTest;
 import { env } from "../config/env";
-import "./testHooks";
+import { test } from "./testHooks";
 
-export const test = base;
+export { test };
 
 export { expect, env };

@@ -2,17 +2,126 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.0 - AI Release Guardian
+
+The product is now **AI Release Guardian**. The npm package name, imports, existing CLIs and their
+output files are unchanged. There are no breaking API changes. The major version marks the new
+merge-gate behavior in the scaffolded workflow.
+
+### Added
+
+- `ai-release-guardian` CLI (`analyze`, `comment`, `init`):
+  - classifies each failure as `regression`, `flaky`, `infrastructure`, `test_issue` or `unknown`,
+    with a confidence and the evidence behind it (retries, base-branch status, history, error
+    signatures, related code changes, AI agreement)
+  - groups failures by probable root cause: same implicated changed file, else same normalized error
+  - attributes failures to likely changed files and commits from `git diff base...HEAD`, with capped
+    heuristic confidence
+  - computes a deterministic 0–100 release risk score (LOW / MEDIUM / HIGH / CRITICAL) that lists
+    every point it added
+  - makes a final **SAFE TO MERGE / REVIEW REQUIRED / BLOCK** decision with a reason
+  - `--fail-on review|block|never` merge gate (`RELEASE_GUARDIAN_FAIL_ON`)
+  - writes `release-report.json` and `release-guardian.md`; posts a compact "AI Release Guardian" PR
+    comment: the decision, one sentence, and one collapsible line per problem (where · why · likely
+    cause), capped at 10 lines plus "…and N more". Test and cause paths link to the exact line on
+    GitHub, and still-failing / fixed tests sit in one collapsed line. The score breakdown is kept
+    in `release-report.json`, not the comment. A clean or
+    safe PR shows just "SAFE TO MERGE" and one line, with no risk score
+- AI root cause from the PR diff: with an AI key set, `analyze` makes one call with the failing tests,
+  their errors and the diff of the changed files, and gets back per problem the file that broke it,
+  what changed, and a fix. Shown as **AI** / **Fix** lines in the expanded problem. The pick must be a
+  file in the diff, counts from 50% confidence, is capped at 85% (90% when the naming rules agree),
+  and can only re-label an "Unclear" failure as a broken test when it traces it to the test's own
+  code. `--ai auto|on|off` / `RELEASE_GUARDIAN_AI`
+- AI summary: with 2 or more problems, the same root-cause call returns a 1 to 3 sentence overview
+  shown right under the verdict, so developers get the gist before opening any problem
+- The per-test AI analysis's observation line ("Root cause, Line 2" in `ai.txt`) is shown in the
+  expanded problem instead of being discarded
+- MCP server for AI assistants (`ai-release-guardian mcp`, name `release-guardian`): read-only tools
+  `get_pr_verdict` (CI result for the PR, or "No CI result for this PR yet"), `analyze_local`
+  (local run, including uncommitted changes), `explain_problem`, `flaky_tests` and
+  `failure_history`, plus report resources. No AI calls of its own. `init` writes `.mcp.json`
+  (Claude Code) and `.cursor/mcp.json` (Cursor), merged into existing files, so everyone who opens
+  the repo is offered the server (`--no-mcp` to skip)
+- Optional `release-guardian.config.json` for product areas and critical areas
+- Playwright reporter writes `artifacts/run-summary.json` (test totals by final outcome)
+- Programmatic API: `analyzeRelease`, `classifyFailure`, `attributeFailure`, `groupFailures`,
+  `scoreRisk`, `decideRelease`, `collectChanges`, `formatReleaseComment`, `readRunSummary`,
+  `inferFailureType`, `formatDiffSections` and types
+- `RELEASE_GUARDIAN_TEARDOWN_LOGS` alias for `QA_INTELLIGENCE_TEARDOWN_LOGS`
+
+### Changed
+
+- `computeDiff` no longer needs AI output: when a failed attempt has `meta.json` but no `ai.txt`,
+  the failure type is inferred from the Playwright error. Failures now carry `title`, `errorMessage`,
+  `project`, `retry`, `url` and `source` (`ai` | `heuristic`)
+- Scaffolded workflow: `fetch-depth: 0`; diff, history and comment run without an AI key; the
+  guardian owns the gate (`--fail-on review`) and `qa-intelligence-diff` runs with
+  `--fail-on-blocking false`; adds a job summary and a release-report artifact
+- `qa-intelligence-comment` and the guardian update an existing bot comment under either header,
+  and look past the first 100 PR comments
+- One `Failure` type in `src/lib/types.ts`; `EnrichedFailure` and the `Failure` export of
+  `computeDiff` are now aliases of it
+
+### Fixed
+
+- Default Anthropic model `claude-3-5-haiku-latest` was retired and returned 404, so Anthropic users
+  without `AI_MODEL` silently got no AI analysis. Default is now `claude-haiku-5-5`, and the cost
+  table has current prices (Opus 4.6 to 4.8 were listed at $15 / $75, now $5 / $25)
+- An empty key variable (e.g. `OPENAI_API_KEY=""`, which is how GitHub renders a missing secret)
+  failed config validation and disabled AI even when `ANTHROPIC_API_KEY` was set. Empty values now
+  count as unset, and without `AI_PROVIDER` the provider is picked from whichever key exists
+- Scaffolded workflow passes `ANTHROPIC_API_KEY` and the `AI_PROVIDER` / `AI_MODEL` repo variables,
+  and enables AI analysis when either key is present
+- `qa-intelligence-history` dropped `blockingFailures` and any extra fields when rewriting
+  `failure-diff.json`
+- Scaffolded workflow: merge-time reuse downloaded an artifact name the PR run never uploads
+  (`ai-failure-artifacts`), so it always re-ran the suite
+- VS Code Playwright extension showed "test server connection closed" when the repo root was open.
+  Two causes, both when Playwright starts from the repo root: `qa-intelligence/config/env` only read
+  `.env` from the current folder and called `process.exit(1)` when `BASE_URL` was missing, and
+  `@playwright/test` was resolved only from the current folder. `.env` is now also read from the
+  Playwright config's folder and `playwright/` (override with `RELEASE_GUARDIAN_ENV_FILE`), a missing
+  variable throws a readable error, and Playwright is resolved from the running CLI first
+- `.env.example` shows the Anthropic setup with `claude-haiku-5-5` and that the provider is picked
+  from whichever key is set
+- **Security:** the npm package now lists the exact template files `init` copies instead of the
+  whole `templates/` folder. Before, any local file there was published, including
+  `templates/playwright/.env`: versions 1.4.6 to 1.5.2 shipped a `.env` (1.5.1 and 1.5.2 with a real
+  API key, which has to be revoked) and thousands of `node_modules` files. CI now fails if the
+  package would contain a `.env`, `node_modules`, test output or anything that looks like an API key
+- `npm test` glob is quoted so `src/index.test.ts` and nested test files actually run
+- **Failures went unrecorded:** the failure hook was a module-level `test.afterEach`, which
+  Playwright attaches only to the first spec file that imports it in each worker. A failure in any
+  later file of the same worker wrote no `meta.json`, so the diff and verdict missed it (with
+  retries, only the retry in a fresh worker was recorded). The hook is now an auto fixture that runs
+  for every test, covered by a test that runs real Playwright
+- Local runs pile up as `artifacts/run-<time>/` folders; the diff read all of them, so a failure
+  fixed since an earlier run was still reported. When `artifacts/.current-run` is present only that
+  run is read (downloaded CI artifacts have no marker, so merged shards are still read whole)
+- A test that is flaky on main and on the PR is listed as "flaky on main too", not "still failing
+  from main"
+- MCP `analyze_local`: says so when only part of the suite ran (and doesn't call the skipped tests
+  fixed), refuses to judge a run that was stopped before it finished, and finds results at the repo
+  root when Playwright ran from there (VS Code extension with the `init` layout)
+- MCP `get_pr_verdict`: tells "CI still running" apart from "CI ran but made no guardian report"
+  (no baseline on main yet), explains a token that can't see the repo instead of GitHub's bare
+  "Not Found", and with several `gh` accounts signed in uses the one named like the repo owner
+- Test files are type-checked: `tsconfig.json` covers them (editors no longer flag `node:` imports),
+  the package builds from `tsconfig.build.json`, and CI runs `npm run typecheck`
+- `init` no longer says `AI_PROVIDER=anthropic` is needed with an Anthropic key
+
 ## 1.5.3
 
 ### Fixed
 
 - AI failure JSON parsing now tolerates a trailing ` ```json ` markdown fence (or any trailing text)
-  around SECTION 2 — some providers (notably Claude/Anthropic) wrap it despite the prompt saying not
+  around SECTION 2 - some providers (notably Claude/Anthropic) wrap it despite the prompt saying not
   to, which previously broke `JSON.parse` and silently dropped the failure from the diff
 
 ### Added (scaffolded CI template)
 
-- `concurrency` guard — cancels superseded PR runs only, never a push/merge run mid-flight, so a
+- `concurrency` guard - cancels superseded PR runs only, never a push/merge run mid-flight, so a
   test's cleanup (e.g. restoring a shared fixture in a `finally`) can't get killed mid-run
 - Push (merge) runs now reuse the merged PR's already-completed results instead of re-running the
   full Playwright suite, falling back to a fresh run when no reusable result is found
@@ -39,11 +148,11 @@ All notable changes to `qa-intelligence` are documented here.
 
 ### Fixed
 
-- AI cost rollup and "Saved AI summary: ..." line printed at the very end of the terminal output, after Playwright's own list-reporter summary and HTML report note — previously `globalTeardown` logged them before tests finished reporting, so they appeared above failure stack traces instead of at the bottom
+- AI cost rollup and "Saved AI summary: ..." line printed at the very end of the terminal output, after Playwright's own list-reporter summary and HTML report note - previously `globalTeardown` logged them before tests finished reporting, so they appeared above failure stack traces instead of at the bottom
 
 ### Added
 
-- `qa-intelligence/playwright/reporter` — official Playwright reporter (`AiSummaryReporter`); register it last in `playwright.config.ts` to print the rollup after all other reporters
+- `qa-intelligence/playwright/reporter` - official Playwright reporter (`AiSummaryReporter`); register it last in `playwright.config.ts` to print the rollup after all other reporters
 - `QA_INTELLIGENCE_TEARDOWN_LOGS` env var (default `false`) to restore `globalTeardown`'s inline provider/analyzing/rollup logs if needed
 
 ### Changed
@@ -106,7 +215,7 @@ All notable changes to `qa-intelligence` are documented here.
 
 ### Added
 
-- **Flaky Watchlist** in PR comments — tests intermittent across recent PR CI runs (from `.cache/failure-history.json`)
+- **Flaky Watchlist** in PR comments - tests intermittent across recent PR CI runs (from `.cache/failure-history.json`)
 - Omits tests already shown as **New Issues** or **Still Failing** on the current PR
 - `computeFlakyWatchlist` exported from package root for custom integrations
 
@@ -155,7 +264,7 @@ All notable changes to `qa-intelligence` are documented here.
 
 ### Added
 
-- `npx qa-intelligence init` — scaffolds `playwright/` and `.github/workflows/qa-intelligence.yml`
+- `npx qa-intelligence init` - scaffolds `playwright/` and `.github/workflows/qa-intelligence.yml`
 - `templates/` bundled in npm package (`playwright` config, example test, CI workflow)
 - `qa-intelligence-init` bin alias
 

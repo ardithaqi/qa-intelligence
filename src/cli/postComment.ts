@@ -14,7 +14,8 @@ function getArg(name: string): string | undefined {
     return process.argv[idx + 1];
 }
 
-const COMMENT_HEADER = "## AI Failure Diff Summary";
+/** Bot comments starting with any of these are updated in place (old + new branding). */
+export const COMMENT_HEADERS = ["## AI Release Guardian", "## AI Failure Diff Summary"];
 
 async function findExistingComment(
     octokit: Octokit,
@@ -22,7 +23,7 @@ async function findExistingComment(
     repo: string,
     issue_number: number
 ) {
-    const { data: comments } = await octokit.issues.listComments({
+    const comments = await octokit.paginate(octokit.issues.listComments, {
         owner,
         repo,
         issue_number,
@@ -33,36 +34,40 @@ async function findExistingComment(
         (c) =>
             c.user?.type === "Bot" &&
             typeof c.body === "string" &&
-            c.body.startsWith(COMMENT_HEADER)
+            COMMENT_HEADERS.some((h) => c.body!.startsWith(h))
     );
 }
 
-async function upsertComment(
-    octokit: Octokit,
-    owner: string,
-    repo: string,
-    issue_number: number,
-    existing: { id: number } | undefined,
-    body: string
-) {
+export interface PrTarget {
+    repo: string;
+    pr: number;
+    token: string;
+}
+
+/**
+ * Create or update the single bot summary comment on a PR.
+ * `body: null` means "nothing to report": updates an existing comment with
+ * `clearBody` if given, otherwise leaves the PR untouched.
+ */
+export async function upsertPrComment(
+    target: PrTarget,
+    body: string | null,
+    clearBody?: string
+): Promise<"created" | "updated" | "skipped"> {
+    const [owner, repo] = target.repo.split("/");
+    const octokit = new Octokit({ auth: target.token });
+    const existing = await findExistingComment(octokit, owner, repo, target.pr);
+
+    const text = body ?? (existing ? clearBody : undefined);
+    if (!text) return "skipped";
+
     if (existing) {
-        await octokit.issues.updateComment({
-            owner,
-            repo,
-            comment_id: existing.id,
-            body,
-        });
-        console.log("Updated existing AI diff comment.");
-        return;
+        await octokit.issues.updateComment({ owner, repo, comment_id: existing.id, body: text });
+        return "updated";
     }
 
-    await octokit.issues.createComment({
-        owner,
-        repo,
-        issue_number,
-        body,
-    });
-    console.log("Created new AI diff comment.");
+    await octokit.issues.createComment({ owner, repo, issue_number: target.pr, body: text });
+    return "created";
 }
 
 async function main() {
@@ -78,49 +83,25 @@ async function main() {
         process.exit(1);
     }
 
-    const [owner, repo] = repoArg.split("/");
-    const issue_number = Number(prArg);
+    const diff = JSON.parse(fs.readFileSync(diffPath, "utf8")) as DiffResult;
+    const target = { repo: repoArg, pr: Number(prArg), token };
 
-    const raw = fs.readFileSync(diffPath, "utf8");
-    const diff = JSON.parse(raw) as DiffResult;
-
-    const octokit = new Octokit({ auth: token });
-    const existing = await findExistingComment(
-        octokit,
-        owner,
-        repo,
-        issue_number
+    const result = await upsertPrComment(
+        target,
+        hasFailureChanges(diff) ? formatDiffComment(diff) : null,
+        formatClearDiffComment()
     );
 
-    if (!hasFailureChanges(diff)) {
-        if (!existing) {
-            console.log("No failure changes. Skipping comment.");
-            return;
-        }
-
-        await upsertComment(
-            octokit,
-            owner,
-            repo,
-            issue_number,
-            existing,
-            formatClearDiffComment()
-        );
-        console.log("Cleared AI diff comment — all tests passed.");
-        return;
-    }
-
-    await upsertComment(
-        octokit,
-        owner,
-        repo,
-        issue_number,
-        existing,
-        formatDiffComment(diff)
+    console.log(
+        result === "skipped"
+            ? "No failure changes. Skipping comment."
+            : `${result === "created" ? "Created" : "Updated"} PR summary comment.`
     );
 }
 
-main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch((e) => {
+        console.error(e);
+        process.exit(1);
+    });
+}

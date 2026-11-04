@@ -15,7 +15,8 @@ import {
     selectMetaFilesForAnalysis,
 } from "../lib/selectMetaForAnalysis";
 
-const TEARDOWN_LOGS = process.env.QA_INTELLIGENCE_TEARDOWN_LOGS === "true";
+const TEARDOWN_LOGS =
+    (process.env.RELEASE_GUARDIAN_TEARDOWN_LOGS ?? process.env.QA_INTELLIGENCE_TEARDOWN_LOGS) === "true";
 
 function findMetaFiles(dir: string, results: string[] = []): string[] {
     const entries = fs.readdirSync(dir, { withFileTypes: true });

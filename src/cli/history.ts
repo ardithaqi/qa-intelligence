@@ -26,9 +26,11 @@ function main() {
         diffPath,
         JSON.stringify(
             {
+                ...diff,
                 newFailures: result.newFailures,
                 unchangedFailures: result.unchangedFailures,
                 fixedFailures: result.fixedFailures,
+                blockingFailures: result.blockingFailures ?? [],
                 flakyWatchlist: result.flakyWatchlist ?? [],
             },
             null,

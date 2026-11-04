@@ -28,7 +28,7 @@ function walkForAiTxt(dir: string, results: string[] = []): string[] {
 /**
  * Extracts the first balanced {...} object from text, ignoring anything
  * before or after it. Needed because some AI providers (notably Claude)
- * wrap the JSON section in a ```json fence despite being told not to —
+ * wrap the JSON section in a ```json fence despite being told not to  - 
  * a naive "first { to end of string" parse breaks on the trailing ```.
  */
 function extractJsonObject(text: string): string | null {
