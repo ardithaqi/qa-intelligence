@@ -35,7 +35,7 @@ Agent:  -> get_pr_verdict()        BLOCK, 1 regression in Checkout, likely cause
 |---|---|---|---|
 | `get_pr_verdict` | `pr?` (default: the current branch's PR) | decision, risk, AI summary, one line per problem. Without a CI result: "No CI result for this PR yet. Run analyze_local for a local verdict." | `release-report.json` artifact from the PR's latest CI run |
 | `explain_problem` | problem id (`G1`) or test path | tests with file and line, likely cause file and commit, AI explanation, fix, error snippet | same report |
-| `analyze_local` | `base?` (default `origin/main`) | a fresh verdict from the local Playwright run, before pushing | local `artifacts/`, git |
+| `analyze_local` | `base?` (default: the repo's default branch, detected from git) | a fresh verdict from the local Playwright run, before pushing | local `artifacts/`, git |
 | `flaky_tests` | `limit?` | most unstable tests with fail rate | history cache |
 | `failure_history` | test path | failure count, first seen, recent pattern | history cache |
 
