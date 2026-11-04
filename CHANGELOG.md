@@ -2,6 +2,18 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.2
+
+### Fixed
+
+- **A test could be counted twice:** attempts were merged by failure type, so when the first
+  attempt was classified from the error text and the last one by the AI with a different type, the
+  same test showed up as two failures (inflating the counts and the risk score). Each test now
+  counts once, from its last attempt. Flaky tests were affected the same way
+- List and object mismatches (`toHaveText([...])`, `toEqual({...})`) read as
+  `expected ["shoes"], got []` instead of just "toHaveText failed", and the error box in the comment
+  shows the differing values
+
 ## 2.0.1
 
 ### Fixed

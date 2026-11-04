@@ -58,6 +58,28 @@ const basename = (file: string) => file.split("/").pop() ?? file;
 // --- "why" in a few words ------------------------------------------------------
 
 /** One short human sentence for why a test failed, derived from its error output. */
+/**
+ * Playwright prints list/object mismatches as a line diff instead of Expected:/Received: lines:
+ *   - Expected  - 3 / + Received  + 1 / - Array [ / -   "shoes", / - ] / + Array []
+ * Returns the two sides compacted, e.g. ['["shoes"]', '[]'].
+ */
+function diffSides(message: string): [string, string] | null {
+    if (!/^- Expected\b/m.test(message) || !/^\+ Received\b/m.test(message)) return null;
+    const side = (sign: "-" | "+") =>
+        message
+            .split("\n")
+            .filter((l) => l.startsWith(`${sign} `) && !/^[-+] (Expected|Received)\b/.test(l))
+            .map((l) => l.slice(2).trim())
+            .join("")
+            .replace(/^(Array|Object)\s*/, "")
+            .replace(/,(\]|\})/g, "$1")
+            .replace(/,(?=\S)/g, ", ")
+            .replace(/,$/, "");
+    const expected = side("-");
+    const received = side("+");
+    return expected || received ? [expected || "(nothing)", received || "(nothing)"] : null;
+}
+
 export function shortReason(failure: Failure): string {
     if (failure.is_flaky_suspected) return "failed, then passed on retry";
 
@@ -71,6 +93,8 @@ export function shortReason(failure: Failure): string {
         if (/element\(s\) not found/.test(received)) return "element not found";
         return `expected ${clip(expected, 40)}, got ${clip(received, 40)}`;
     }
+    const sides = diffSides(message);
+    if (sides) return `expected ${clip(sides[0], 40)}, got ${clip(sides[1], 40)}`;
 
     const net = message.match(/net::(ERR_[A-Z_]+)|\b(ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT)\b/);
     if (net && INFRASTRUCTURE_PATTERN.test(message)) return `can't reach server (${net[1] ?? net[2]})`;
@@ -164,7 +188,7 @@ function problemDetails(group: FailureGroup, options: CommentOptions): string {
     if (error) {
         const errorLines = error.split("\n").filter((l) => l.trim());
         const callLog = errorLines.findIndex((l) => /^\s*Call log:/.test(l));
-        const snippet = (callLog >= 0 ? errorLines.slice(0, callLog) : errorLines).slice(0, 6).join("\n");
+        const snippet = (callLog >= 0 ? errorLines.slice(0, callLog) : errorLines).slice(0, 10).join("\n");
         lines.push("", "```", snippet.replace(/```/g, "'''"), "```");
     }
 

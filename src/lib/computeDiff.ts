@@ -172,7 +172,13 @@ function collectFailures(dir: string): Failure[] {
     function consider(failure: Failure | null, filePath: string) {
         if (!failure) return;
 
-        const key = failureDiffKey(failure.file, failure.failure_type);
+        // One record per test: attempts live in <spec>/<test>/attempt-N/, and only the last one
+        // counts. Keying attempts by failure type kept a test twice when the attempts were
+        // classified differently (e.g. AI on the last attempt, error-text rules on the first).
+        const attemptDir = path.dirname(filePath);
+        const key = /^attempt-\d+$/.test(path.basename(attemptDir))
+            ? `test:${path.dirname(attemptDir)}`
+            : failureDiffKey(failure.file, failure.failure_type);
         const attempt = parseAttemptFromAiPath(
             filePath.replace(/meta\.json$/, "ai.txt")
         );

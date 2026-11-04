@@ -378,6 +378,13 @@ describe("formatReleaseComment", () => {
 });
 
 describe("shortReason", () => {
+    it("reads Playwright's line diff for lists and objects", () => {
+        const list = "Error: expect(locator).toHaveText(expected) failed\n\nLocator: locator('li')\n- Expected  - 3\n+ Received  + 1\n\n- Array [\n-   \"shoes\",\n- ]\n+ Array []\n\nCall log:\n  - waiting";
+        assert.equal(shortReason(f("tests/search.spec.ts", { errorMessage: list })), 'expected ["shoes"], got []');
+        const obj = "Error: x\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n-   \"a\": 1,\n+   \"a\": 2,\n  }";
+        assert.equal(shortReason(f("tests/a.spec.ts", { errorMessage: obj })), 'expected "a": 1, got "a": 2');
+    });
+
     const cases: [Partial<Failure>, string][] = [
         [{ errorMessage: 'Timed out 300ms waiting for expect(locator).toHaveText(expected)\nExpected: "30"\nReceived: "20"' }, 'expected "30", got "20"'],
         [{ errorMessage: "Expected: visible\nReceived: <element(s) not found>" }, "element not found"],
