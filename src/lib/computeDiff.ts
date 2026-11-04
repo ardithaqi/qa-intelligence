@@ -57,7 +57,8 @@ function resolveLocation(
     meta: MetaJson | null,
     ai?: Partial<Failure> | null
 ): { file: string; line: number } | null {
-    const fromStack = parseLocationFromStack(meta?.stack);
+    // In the test's own spec file: a helper frame (tests/support/...) must not stand in for the test.
+    const fromStack = parseLocationFromStack(meta?.stack, typeof meta?.file === "string" ? meta.file : undefined);
     const fromMeta =
         typeof meta?.file === "string"
             ? {
@@ -179,7 +180,7 @@ function collectFailures(dir: string): Failure[] {
         const attemptDir = path.dirname(filePath);
         const key = /^attempt-\d+$/.test(path.basename(attemptDir))
             ? `test:${path.dirname(attemptDir)}`
-            : failureDiffKey(failure.file, failure.failure_type);
+            : failureDiffKey(failure.file, failure.failure_type, failure.title);
         const attempt = parseAttemptFromAiPath(
             filePath.replace(/meta\.json$/, "ai.txt")
         );
@@ -221,7 +222,7 @@ function toMap(arr: Failure[]) {
     const map = new Map<string, Failure>();
 
     for (const item of arr) {
-        const key = failureDiffKey(item.file, item.failure_type);
+        const key = failureDiffKey(item.file, item.failure_type, item.title);
         map.set(key, item);
     }
 

@@ -116,7 +116,7 @@ function parseAiTxt(filePath: string): AiFailure | null {
 }
 
 export function failureKey(f: AiFailure): FailureKey {
-    return failureDiffKey(f.file, f.failure_type);
+    return failureDiffKey(f.file, f.failure_type, f.title);
 }
 
 export function readFailures(options: ReadFailuresOptions): {
