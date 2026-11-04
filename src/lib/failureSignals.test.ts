@@ -28,6 +28,13 @@ describe("inferFailureType", () => {
 });
 
 describe("errorSignature", () => {
+    it("ignores one-time tokens in URLs, so the same broken link groups together", () => {
+        const a = errorSignature("Error: page.goto: net::ERR_NAME_NOT_RESOLVED at https://pre-pre-dev.example.com/set-password?token=abc123");
+        const b = errorSignature("Error: page.goto: net::ERR_NAME_NOT_RESOLVED at https://pre-pre-dev.example.com/set-password?token=xyz789");
+        assert.equal(a, b);
+        assert.doesNotMatch(a, /token/);
+    });
+
     it("matches the same error across runs (timeouts, paths, line numbers differ)", () => {
         assert.equal(
             errorSignature("Error: Timed out 300ms waiting for expect(locator).toHaveText(expected)\nExpected: \"dashboard\"\nReceived: \"login\"\nCall log:\n  - waited 12ms"),

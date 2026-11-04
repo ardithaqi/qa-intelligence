@@ -56,6 +56,8 @@ export function errorSignature(errorMessage: string | undefined): string {
     return relevant
         .join(" | ")
         .replace(/^Error:\s*/, "")
+        // One-time tokens and ids in query strings differ per test; the failure is the same.
+        .replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/g, "$1")
         .replace(/\b\d+ms\b/g, "<t>ms")
         .replace(/(?:[A-Za-z]:)?(?:\/[\w.-]+){2,}/g, "<path>")
         .replace(/:\d+:\d+\b/g, ":<l>")
