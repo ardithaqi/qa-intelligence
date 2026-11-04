@@ -15,6 +15,26 @@ function git(args: string[], cwd: string): string {
  * "Files changed" tab), each with the latest commit in range that touched it.
  * Two git calls total. Never throws: failures come back as `warning`.
  */
+/**
+ * Committed changes plus uncommitted work: files modified or staged since HEAD
+ * and untracked files. Used for local analysis before pushing; the latter
+ * carry no commit. Repo-root relative paths, like collectChanges.
+ */
+export function collectChangesWithWorktree(base: string | undefined, cwd = process.cwd()): ChangeContext {
+    const committed = collectChanges(base, "HEAD", cwd);
+    try {
+        const pending = [
+            ...git(["diff", "--name-only", "-z", "HEAD"], cwd).split("\0"),
+            ...git(["ls-files", "--others", "--exclude-standard", "-z", "--full-name"], cwd).split("\0"),
+        ].filter(Boolean);
+        const known = new Set(committed.files.map((f) => f.path));
+        const extra = [...new Set(pending)].filter((p) => !known.has(p)).map((path) => ({ path }));
+        return { ...committed, files: [...committed.files, ...extra] };
+    } catch {
+        return committed;
+    }
+}
+
 export function collectChanges(base: string | undefined, head = "HEAD", cwd = process.cwd()): ChangeContext {
     if (!base) {
         return { files: [], warning: "No base ref given (--base); likely-source attribution skipped." };

@@ -22,6 +22,7 @@ Usage:
   ai-release-guardian analyze [options]   Classify failures, score risk, decide (default)
   ai-release-guardian comment [options]   Post/update the PR summary comment
   ai-release-guardian init [--force]      Scaffold playwright/ + CI workflow
+  ai-release-guardian mcp                 MCP server for AI assistants (Claude Code, Cursor)
 
 analyze options:
   --diff <file>        Failure diff to read (default failure-diff.json). Computed from
@@ -212,6 +213,11 @@ export async function runGuardian(argv: string[] = process.argv.slice(2)): Promi
 
     if (first === "--help" || first === "-h" || first === "help") {
         console.log(HELP);
+        return 0;
+    }
+    if (first === "mcp") {
+        const { startStdioServer } = await import("../mcp/server");
+        await startStdioServer();
         return 0;
     }
     if (first === "init") {
