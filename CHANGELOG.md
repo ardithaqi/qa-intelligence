@@ -37,6 +37,12 @@ merge-gate behavior in the scaffolded workflow.
   shown right under the verdict, so developers get the gist before opening any problem
 - The per-test AI analysis's observation line ("Root cause, Line 2" in `ai.txt`) is shown in the
   expanded problem instead of being discarded
+- MCP server for AI assistants (`ai-release-guardian mcp`, name `release-guardian`): read-only tools
+  `get_pr_verdict` (CI result for the PR, or "No CI result for this PR yet"), `analyze_local`
+  (local run, including uncommitted changes), `explain_problem`, `flaky_tests` and
+  `failure_history`, plus report resources. No AI calls of its own. `init` writes `.mcp.json`
+  (Claude Code) and `.cursor/mcp.json` (Cursor), merged into existing files, so everyone who opens
+  the repo is offered the server (`--no-mcp` to skip)
 - Optional `release-guardian.config.json` for product areas and critical areas
 - Playwright reporter writes `artifacts/run-summary.json` (test totals by final outcome)
 - Programmatic API: `analyzeRelease`, `classifyFailure`, `attributeFailure`, `groupFailures`,
@@ -71,8 +77,19 @@ merge-gate behavior in the scaffolded workflow.
   `failure-diff.json`
 - Scaffolded workflow: merge-time reuse downloaded an artifact name the PR run never uploads
   (`ai-failure-artifacts`), so it always re-ran the suite
-- Published package excludes `templates/**/node_modules` and `templates/**/package-lock.json`
-  (a local install in the template folder could otherwise ship tens of MB)
+- VS Code Playwright extension showed "test server connection closed" when the repo root was open.
+  Two causes, both when Playwright starts from the repo root: `qa-intelligence/config/env` only read
+  `.env` from the current folder and called `process.exit(1)` when `BASE_URL` was missing, and
+  `@playwright/test` was resolved only from the current folder. `.env` is now also read from the
+  Playwright config's folder and `playwright/` (override with `RELEASE_GUARDIAN_ENV_FILE`), a missing
+  variable throws a readable error, and Playwright is resolved from the running CLI first
+- `.env.example` shows the Anthropic setup with `claude-haiku-5-5` and that the provider is picked
+  from whichever key is set
+- **Security:** the npm package now lists the exact template files `init` copies instead of the
+  whole `templates/` folder. Before, any local file there was published, including
+  `templates/playwright/.env`: versions 1.4.6 to 1.5.2 shipped a `.env` (1.5.1 and 1.5.2 with a real
+  API key, which has to be revoked) and thousands of `node_modules` files. CI now fails if the
+  package would contain a `.env`, `node_modules`, test output or anything that looks like an API key
 - `npm test` glob is quoted so `src/index.test.ts` and nested test files actually run
 
 ## 1.5.3

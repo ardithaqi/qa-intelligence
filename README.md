@@ -253,6 +253,30 @@ A key that never changes restores fine, but `actions/cache` won't save over an e
 
 ---
 
+## AI assistants (MCP)
+
+Claude Code, Cursor and other MCP clients can ask the guardian directly, from the editor: *"why is my PR blocked?"*, *"is this test just flaky?"*. The assistant gets the verdict, the failing tests, the likely cause and the fix, and can then fix the code and re-check it before you push.
+
+**Setup is automatic.** `init` writes `.mcp.json` (Claude Code) and `.cursor/mcp.json` (Cursor) at the repo root. Commit them, and anyone who opens the repo is asked once to enable the `release-guardian` server. To add it by hand:
+
+```bash
+claude mcp add release-guardian -- node playwright/node_modules/qa-intelligence/dist/cli/guardian.js mcp
+```
+
+The config runs the locally installed package with `node`. It doesn't use `npx ai-release-guardian`, because npx would look for a package of that name on npm.
+
+| Tool | What it answers |
+|------|-----------------|
+| `get_pr_verdict` | The PR's verdict from its latest CI run (defaults to the current branch's PR). If CI hasn't produced one yet, it says so and points to `analyze_local`. |
+| `analyze_local` | A verdict for your local Playwright run, including uncommitted changes. Use it before pushing or to check a fix. |
+| `explain_problem` | One problem in detail: tests with file and line, likely cause and commit, AI explanation and fix, error. |
+| `flaky_tests` | The most unstable tests from CI history, plus tests that only passed on retry. |
+| `failure_history` | How often a test failed, since when, and how it's classified now. |
+
+All tools are read-only: nothing is written to the repo or posted to GitHub, and the server makes no AI calls of its own (the assistant is the AI). `get_pr_verdict` reads the PR's `release-guardian-*` CI artifact, which needs a GitHub token (`GITHUB_TOKEN`, or the GitHub CLI signed in with `gh auth login`). `init --no-mcp` skips the editor config.
+
+---
+
 ## CLI
 
 | Command | Purpose |

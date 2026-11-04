@@ -83,7 +83,8 @@ Planned v3 features should plug into these seams rather than adding parallel pip
 | Ownership / CODEOWNERS | Map `Attribution.path` → owner in `analyzeRelease` |
 | Repo rules, merge policies | `GuardianConfig` (`release-guardian.config.json`) + `decideRelease` thresholds |
 | AI root-cause narrative | Optional step after `groupFailures`; may add text, must not change decision |
-| MCP / dashboard / API | Read `release-report.json` (`schemaVersion: 1`); bump the version on breaking shape changes |
+| MCP server (built, `docs/mcp.md`) | `src/mcp/` (`server.ts` wiring, `tools.ts` pure handlers, `github.ts` artifact access); add tools in `tools.ts` + register in `server.ts`; keep them read-only, no AI calls, stdout reserved for the protocol |
+| Dashboard / API | Read `release-report.json` (`schemaVersion: 1`); bump the version on breaking shape changes |
 
 ---
 
