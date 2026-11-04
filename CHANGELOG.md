@@ -2,6 +2,15 @@
 
 All notable changes to `qa-intelligence` are documented here.
 
+## 2.0.3
+
+### Fixed
+
+- **AI answers in a ```json fence were dropped:** models (Claude especially) often wrap the JSON in
+  a code fence, which the parser couldn't read, and because `meta.json` is skipped when an `ai.txt`
+  exists, the whole failure disappeared from the diff. Fenced JSON is now read, and an `ai.txt` that
+  still can't be parsed falls back to `meta.json`, so a failure is never lost
+
 ## 2.0.2
 
 ### Fixed
